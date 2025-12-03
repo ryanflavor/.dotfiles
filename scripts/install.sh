@@ -31,6 +31,61 @@ log() { echo "[info] $*"; }
 warn() { echo "[warn] $*" >&2; }
 LINK_TARGETS=()
 
+ensure_description() {
+    local file="$1"
+    local tmp desc end_line body
+
+    # 无 front-matter，直接补齐三行规范格式
+    if [ "$(head -n1 "$file" 2>/dev/null)" != "---" ]; then
+        tmp="$(mktemp)"
+        {
+            echo "---"
+            echo "description:"
+            echo "---"
+            echo ""
+            cat "$file"
+        } >"$tmp"
+        mv "$tmp" "$file"
+        log "补齐 front-matter（仅 description）: $file"
+        return
+    fi
+
+    # 查找 front-matter 结束行
+    end_line=$(awk 'NR>1 && /^---[ \t]*$/ {print NR; exit}' "$file")
+    if [ -z "$end_line" ]; then
+        warn "front-matter 未闭合，跳过: $file"
+        return
+    fi
+
+    # 取现有 description 值（若无则空）
+    desc=$(awk -v end="$end_line" '
+        NR<=end && /^description:[ \t]*/ {sub(/^description:[ \t]*/, ""); print; exit}
+    ' "$file")
+
+    # 取正文
+    body=$(sed -n "$((end_line+1)),\$p" "$file")
+
+    # 覆盖写入标准化 front-matter
+    tmp="$(mktemp)"
+    {
+        echo "---"
+        printf "description: %s\n" "$desc"
+        echo "---"
+        echo ""
+        printf "%s\n" "$body"
+    } >"$tmp"
+    mv "$tmp" "$file"
+    log "标准化 front-matter（仅 description）: $file"
+}
+
+ensure_description_all() {
+    shopt -s nullglob
+    for file in "$COMMANDS_DIR"/*.md; do
+        ensure_description "$file"
+    done
+    shopt -u nullglob
+}
+
 if command -v curl >/dev/null 2>&1; then
     REMOTE_CONFIG=$(curl -fsSL "$CONFIG_URL" 2>/dev/null || echo "")
     if [ -n "$REMOTE_CONFIG" ]; then
@@ -88,3 +143,5 @@ for raw_dir in "${LINK_TARGETS[@]}"; do
     ln -s "$COMMANDS_DIR" "$dir"
     log "创建软链: $dir -> $COMMANDS_DIR"
 done
+
+ensure_description_all

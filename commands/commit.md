@@ -1,3 +1,7 @@
+---
+description: 生成符合 Conventional Commits 规范的提交说明
+---
+
 # Commit Message
 
 You are preparing a Conventional Commits style message for the current repository state.
