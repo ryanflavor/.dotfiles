@@ -1,45 +1,52 @@
 # dotfiles
 
-[中文](./README_CN.md)
+[中文](./README.zh-CN.md)
 
 Share a single commands directory across Claude CLI, Codex CLI, and Factory CLI.
-
-## Quick Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/bootstrap.sh | bash
-```
-
-## Advanced Install (with version control)
-
-**1. Fork & Clone**
-
-```bash
-git clone https://github.com/<your-username>/.dotfiles.git <target-dir>
-```
-
-`<target-dir>` is the directory you want to version control (e.g., `~/.dotfiles`).
-
-**2. Create symlinks**
-
-```bash
-cd <target-dir>
-./scripts/install.sh
-```
 
 ## What it does
 
 ```
-~/.claude/commands   → <target-dir>/commands (symlink)
-~/.codex/prompts     → <target-dir>/commands (symlink)
-~/.factory/commands  → <target-dir>/commands (symlink)
+~/.claude/commands   → ~/.dotfiles/commands (symlink)
+~/.codex/prompts     → ~/.dotfiles/commands (symlink)
+~/.factory/commands  → ~/.dotfiles/commands (symlink)
 ```
 
-All three tools share the same directory. Edit once, apply everywhere.
+Edit once, apply everywhere.
 
-## Configuration (Advanced)
+## Install
 
-Edit `config.json`:
+### Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/install.sh | bash
+```
+
+Deps: none for the default path. `jq` is only needed when `scripts/config.json` exists; `rsync` is used for migrating existing dirs (falls back to `cp -an`).
+
+### Version Control & Customization
+
+1. Fork & clone:
+
+```bash
+git clone https://github.com/<your-username>/.dotfiles.git ~/.dotfiles
+```
+
+2. Run installer:
+
+```bash
+cd ~/.dotfiles && ./scripts/install.sh
+```
+
+## Uninstall
+
+```bash
+cd ~/.dotfiles && ./scripts/uninstall.sh
+```
+
+## Configuration
+
+Edit `scripts/config.json` to customize link targets:
 
 ```json
 {
@@ -51,6 +58,4 @@ Edit `config.json`:
 }
 ```
 
-- `link_targets`: Directories to symlink
-
-Re-run `./scripts/install.sh` after changing config.
+The installer backs up existing directories before creating symlinks.

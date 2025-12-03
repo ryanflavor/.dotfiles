@@ -43,56 +43,51 @@ expand_path() {
     esac
 }
 
-LINK_TARGETS=()
-if [ -f "$CONFIG_FILE" ]; then
-    if command -v jq >/dev/null 2>&1; then
+load_targets() {
+    LINK_TARGETS=()
+    if [ -f "$CONFIG_FILE" ] && command -v jq >/dev/null 2>&1; then
         while IFS= read -r line; do
             [ -n "$line" ] && LINK_TARGETS+=("$line")
         done < <(jq -r '.link_targets[]' "$CONFIG_FILE")
 
-        if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
-            warn "config.json 为空，使用默认链接目标"
-            LINK_TARGETS=("${DEFAULT_LINK_TARGETS[@]}")
-        fi
+        [ "${#LINK_TARGETS[@]}" -gt 0 ] && return
+        warn "config.json 为空，使用默认链接目标"
+    elif [ -f "$CONFIG_FILE" ]; then
+        warn "未找到 jq，无法读取 config.json，使用默认链接目标"
     else
-        warn "未找到 jq，忽略 config.json，使用默认链接目标"
-        LINK_TARGETS=("${DEFAULT_LINK_TARGETS[@]}")
+        warn "未找到 config.json（期望位于 scripts/config.json），使用默认链接目标"
     fi
-else
-    warn "未找到 config.json（期望位于 scripts/config.json），使用默认链接目标"
     LINK_TARGETS=("${DEFAULT_LINK_TARGETS[@]}")
-fi
+}
 
-mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR"
+load_targets
 
 for raw_dir in "${LINK_TARGETS[@]}"; do
     dir="$(expand_path "$raw_dir")"
 
-    # 已存在且已正确链接，跳过
     if [ -L "$dir" ]; then
         target="$(readlink "$dir")"
         if [ "$target" = "$COMMANDS_DIR" ]; then
-            log "已存在软链: $dir -> $target"
+            rm "$dir"
+            log "移除软链: $dir"
+        else
+            warn "跳过：$dir 指向其他位置 ($target)"
             continue
         fi
-        rm "$dir"
-    elif [ -f "$dir" ]; then
-        warn "跳过：$dir 是普通文件"
+    elif [ -e "$dir" ]; then
+        warn "跳过：$dir 存在但非软链"
         continue
-    elif [ -d "$dir" ]; then
-        backup="${dir}.bak-$(date +%Y%m%d%H%M%S)"
-        mv "$dir" "$backup"
-        log "备份原目录 -> $backup"
-        if command -v rsync >/dev/null 2>&1; then
-            rsync -a --ignore-existing "$backup"/ "$COMMANDS_DIR"/ || warn "复制 $backup 时出错"
-        else
-            warn "未找到 rsync，使用 cp -an 复制，可能覆盖同名文件"
-            cp -an "$backup"/. "$COMMANDS_DIR"/ || warn "复制 $backup 时出错"
-        fi
+    else
+        log "未找到软链: $dir"
     fi
 
-    mkdir -p "$(dirname "$dir")"
-
-    ln -s "$COMMANDS_DIR" "$dir"
-    log "创建软链: $dir -> $COMMANDS_DIR"
+    latest_backup=$(ls -1dt "${dir}.bak-"* 2>/dev/null | head -n 1 || true)
+    if [ -n "${latest_backup:-}" ]; then
+        mv "$latest_backup" "$dir"
+        log "已恢复备份: $latest_backup -> $dir"
+    else
+        log "无可用备份，未恢复: $dir"
+    fi
 done
+
+log "卸载完成"
