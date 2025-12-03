@@ -5,7 +5,7 @@ set -euo pipefail
 expand_path() {
     case "$1" in
         "~") echo "$HOME" ;;
-        ~/*)  echo "$HOME/${1#~/}" ;;
+        "~/"*) echo "$HOME/${1:2}" ;;
         *)    echo "$1" ;;
     esac
 }
