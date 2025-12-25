@@ -2,15 +2,23 @@
 
 [中文](./README.zh-CN.md)
 
-Share a single commands directory across Claude Code, Codex, Droid, and Antigravity.
+Share a single commands and skills directory across Claude Code, Codex, Droid, and Antigravity.
 
 ## What it does
 
+**Commands:**
 ```
 ~/.claude/commands   → ~/.dotfiles/commands (symlink)
 ~/.codex/prompts     → ~/.dotfiles/commands (symlink)
 ~/.factory/commands  → ~/.dotfiles/commands (symlink)
 ~/.gemini/antigravity/global_workflows → ~/.dotfiles/commands (symlink)
+```
+
+**Skills:**
+```
+~/.claude/skills     → ~/.dotfiles/skills (symlink)
+~/.codex/skills      → ~/.dotfiles/skills (symlink)
+~/.factory/skills    → ~/.dotfiles/skills (symlink)
 ```
 
 Edit once, apply everywhere.

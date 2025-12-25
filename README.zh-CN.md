@@ -2,15 +2,23 @@
 
 [English](./README.md)
 
-让 Claude Code、Codex、Droid、Antigravity 共享同一个 commands 目录。
+让 Claude Code、Codex、Droid、Antigravity 共享同一个 commands 和 skills 目录。
 
 ## 做了什么
 
+**Commands:**
 ```
 ~/.claude/commands   → ~/.dotfiles/commands (软链)
 ~/.codex/prompts     → ~/.dotfiles/commands (软链)
 ~/.factory/commands  → ~/.dotfiles/commands (软链)
 ~/.gemini/antigravity/global_workflows → ~/.dotfiles/commands (软链)
+```
+
+**Skills:**
+```
+~/.claude/skills     → ~/.dotfiles/skills (软链)
+~/.codex/skills      → ~/.dotfiles/skills (软链)
+~/.factory/skills    → ~/.dotfiles/skills (软链)
 ```
 
 改一处，全生效。
