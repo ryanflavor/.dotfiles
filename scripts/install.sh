@@ -66,32 +66,8 @@ ensure_description() {
         return
     fi
 
-    # 查找 front-matter 结束行
-    end_line=$(awk 'NR>1 && /^---[ \t]*$/ {print NR; exit}' "$file")
-    if [ -z "$end_line" ]; then
-        warn "front-matter 未闭合，跳过: $file"
-        return
-    fi
-
-    # 取现有 description 值（若无则空）
-    desc=$(awk -v end="$end_line" '
-        NR<=end && /^description:[ \t]*/ {sub(/^description:[ \t]*/, ""); print; exit}
-    ' "$file")
-
-    # 取正文
-    body=$(sed -n "$((end_line+1)),\$p" "$file")
-
-    # 覆盖写入标准化 front-matter
-    tmp="$(mktemp)"
-    {
-        echo "---"
-        printf "description: %s\n" "$desc"
-        echo "---"
-        echo ""
-        printf "%s\n" "$body"
-    } >"$tmp"
-    mv "$tmp" "$file"
-    log "标准化 front-matter（仅 description）: $file"
+    # 已有 front-matter，跳过不处理
+    return
 }
 
 ensure_description_all() {
