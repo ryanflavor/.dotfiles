@@ -2,7 +2,7 @@
 
 [English](./README.md)
 
-让 Claude Code、Codex、Droid、Antigravity 共享同一个 commands 和 skills 目录。
+让 Claude Code、Codex、Droid、Antigravity 共享 commands、skills 和全局 Agent 配置。
 
 ## 做了什么
 
@@ -19,6 +19,13 @@
 ~/.claude/skills     → ~/.dotfiles/skills (软链)
 ~/.codex/skills      → ~/.dotfiles/skills (软链)
 ~/.factory/skills    → ~/.dotfiles/skills (软链)
+```
+
+**全局 Agent 配置 (AGENTS.md):**
+```
+~/.claude/CLAUDE.md  → ~/.dotfiles/agents/AGENTS.md (软链)
+~/.factory/AGENTS.md → ~/.dotfiles/agents/AGENTS.md (软链)
+~/.codex/AGENTS.md   → ~/.dotfiles/agents/AGENTS.md (软链)
 ```
 
 改一处，全生效。

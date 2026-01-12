@@ -18,6 +18,7 @@ else
 fi
 COMMANDS_DIR="$DOTFILES_DIR/commands"
 SKILLS_DIR="$DOTFILES_DIR/skills"
+AGENTS_FILE="$DOTFILES_DIR/agents/AGENTS.md"
 
 CONFIG_URL="${CONFIG_URL:-https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/config.json}"
 
@@ -34,11 +35,18 @@ DEFAULT_SKILL_TARGETS=(
     "~/.factory/skills"
 )
 
+DEFAULT_AGENT_TARGETS=(
+    "~/.claude/CLAUDE.md"
+    "~/.factory/AGENTS.md"
+    "~/.codex/AGENTS.md"
+)
+
 log() { echo "[info] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
 LINK_TARGETS=()
 SKILL_TARGETS=()
+AGENT_TARGETS=()
 
 if command -v curl >/dev/null 2>&1; then
     REMOTE_CONFIG=$(curl -fsSL "$CONFIG_URL" 2>/dev/null || echo "")
@@ -50,6 +58,9 @@ if command -v curl >/dev/null 2>&1; then
             while IFS= read -r line; do
                 [ -n "$line" ] && SKILL_TARGETS+=("$line")
             done < <(echo "$REMOTE_CONFIG" | jq -r '.skills[]' 2>/dev/null)
+            while IFS= read -r line; do
+                [ -n "$line" ] && AGENT_TARGETS+=("$line")
+            done < <(echo "$REMOTE_CONFIG" | jq -r '.agents[]' 2>/dev/null)
             if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
                 warn "远端配置缺少 commands 或为空，使用默认链接目标"
             fi
@@ -69,6 +80,10 @@ fi
 
 if [ "${#SKILL_TARGETS[@]}" -eq 0 ]; then
     SKILL_TARGETS=("${DEFAULT_SKILL_TARGETS[@]}")
+fi
+
+if [ "${#AGENT_TARGETS[@]}" -eq 0 ]; then
+    AGENT_TARGETS=("${DEFAULT_AGENT_TARGETS[@]}")
 fi
 
 for raw_dir in "${LINK_TARGETS[@]}"; do
@@ -124,6 +139,35 @@ for raw_dir in "${SKILL_TARGETS[@]}"; do
         log "已恢复备份: $latest_backup -> $dir"
     else
         log "无可用备份，未恢复: $dir"
+    fi
+done
+
+# 处理 agents 文件软链接
+for raw_file in "${AGENT_TARGETS[@]}"; do
+    file="$(expand_path "$raw_file")"
+
+    if [ -L "$file" ]; then
+        target="$(readlink "$file")"
+        if [ "$target" = "$AGENTS_FILE" ]; then
+            rm "$file"
+            log "移除软链: $file"
+        else
+            warn "跳过：$file 指向其他位置 ($target)"
+            continue
+        fi
+    elif [ -e "$file" ]; then
+        warn "跳过：$file 存在但非软链"
+        continue
+    else
+        log "未找到软链: $file"
+    fi
+
+    latest_backup=$(ls -1dt "${file}.bak-"* 2>/dev/null | head -n 1 || true)
+    if [ -n "${latest_backup:-}" ]; then
+        mv "$latest_backup" "$file"
+        log "已恢复备份: $latest_backup -> $file"
+    else
+        log "无可用备份，未恢复: $file"
     fi
 done
 

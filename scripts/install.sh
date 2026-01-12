@@ -18,6 +18,7 @@ else
 fi
 COMMANDS_DIR="$DOTFILES_DIR/commands"
 SKILLS_DIR="$DOTFILES_DIR/skills"
+AGENTS_FILE="$DOTFILES_DIR/agents/AGENTS.md"
 
 CONFIG_URL="${CONFIG_URL:-https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/config.json}"
 
@@ -34,10 +35,17 @@ DEFAULT_SKILL_TARGETS=(
     "~/.factory/skills"
 )
 
+DEFAULT_AGENT_TARGETS=(
+    "~/.claude/CLAUDE.md"
+    "~/.factory/AGENTS.md"
+    "~/.codex/AGENTS.md"
+)
+
 log() { echo "[info] $*"; }
 warn() { echo "[warn] $*" >&2; }
 LINK_TARGETS=()
 SKILL_TARGETS=()
+AGENT_TARGETS=()
 
 ensure_description() {
     local file="$1"
@@ -104,6 +112,9 @@ if command -v curl >/dev/null 2>&1; then
             while IFS= read -r line; do
                 [ -n "$line" ] && SKILL_TARGETS+=("$line")
             done < <(echo "$REMOTE_CONFIG" | jq -r '.skills[]' 2>/dev/null)
+            while IFS= read -r line; do
+                [ -n "$line" ] && AGENT_TARGETS+=("$line")
+            done < <(echo "$REMOTE_CONFIG" | jq -r '.agents[]' 2>/dev/null)
             if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
                 warn "远端配置缺少 commands 或为空，使用默认链接目标"
             fi
@@ -125,7 +136,26 @@ if [ "${#SKILL_TARGETS[@]}" -eq 0 ]; then
     SKILL_TARGETS=("${DEFAULT_SKILL_TARGETS[@]}")
 fi
 
-mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR" "$SKILLS_DIR"
+if [ "${#AGENT_TARGETS[@]}" -eq 0 ]; then
+    AGENT_TARGETS=("${DEFAULT_AGENT_TARGETS[@]}")
+fi
+
+mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR" "$SKILLS_DIR" "$(dirname "$AGENTS_FILE")"
+
+# 如果源文件不存在，合并所有现有 agents 文件内容
+if [ ! -f "$AGENTS_FILE" ]; then
+    log "首次安装，合并现有 agents 文件内容..."
+    touch "$AGENTS_FILE"
+    for raw_file in "${AGENT_TARGETS[@]}"; do
+        file="$(expand_path "$raw_file")"
+        if [ -f "$file" ] && [ ! -L "$file" ]; then
+            echo "" >> "$AGENTS_FILE"
+            echo "# === 来自 $raw_file ===" >> "$AGENTS_FILE"
+            cat "$file" >> "$AGENTS_FILE"
+            log "合并内容: $file"
+        fi
+    done
+fi
 
 for raw_dir in "${LINK_TARGETS[@]}"; do
     dir="$(expand_path "$raw_dir")"
@@ -188,6 +218,32 @@ for raw_dir in "${SKILL_TARGETS[@]}"; do
 
     ln -s "$SKILLS_DIR" "$dir"
     log "创建软链: $dir -> $SKILLS_DIR"
+done
+
+# 处理 agents 文件软链接（文件级别，非目录）
+for raw_file in "${AGENT_TARGETS[@]}"; do
+    file="$(expand_path "$raw_file")"
+
+    if [ -L "$file" ]; then
+        target="$(readlink "$file")"
+        if [ "$target" = "$AGENTS_FILE" ]; then
+            log "已存在软链: $file -> $target"
+            continue
+        fi
+        rm "$file"
+    elif [ -d "$file" ]; then
+        warn "跳过：$file 是目录"
+        continue
+    elif [ -f "$file" ]; then
+        backup="${file}.bak-$(date +%Y%m%d%H%M%S)"
+        mv "$file" "$backup"
+        log "备份原文件 -> $backup"
+    fi
+
+    mkdir -p "$(dirname "$file")"
+
+    ln -s "$AGENTS_FILE" "$file"
+    log "创建软链: $file -> $AGENTS_FILE"
 done
 
 ensure_description_all

@@ -2,7 +2,7 @@
 
 [中文](./README.zh-CN.md)
 
-Share a single commands and skills directory across Claude Code, Codex, Droid, and Antigravity.
+Share commands, skills, and global agent instructions across Claude Code, Codex, Droid, and Antigravity.
 
 ## What it does
 
@@ -19,6 +19,13 @@ Share a single commands and skills directory across Claude Code, Codex, Droid, a
 ~/.claude/skills     → ~/.dotfiles/skills (symlink)
 ~/.codex/skills      → ~/.dotfiles/skills (symlink)
 ~/.factory/skills    → ~/.dotfiles/skills (symlink)
+```
+
+**Global Agent Instructions (AGENTS.md):**
+```
+~/.claude/CLAUDE.md  → ~/.dotfiles/agents/AGENTS.md (symlink)
+~/.factory/AGENTS.md → ~/.dotfiles/agents/AGENTS.md (symlink)
+~/.codex/AGENTS.md   → ~/.dotfiles/agents/AGENTS.md (symlink)
 ```
 
 Edit once, apply everywhere.
