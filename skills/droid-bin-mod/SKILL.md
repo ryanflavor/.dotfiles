@@ -17,8 +17,9 @@ description: 修改 droid 二进制以禁用截断。当用户提到：修改/�
 # 测试 mod1+2 (命令截断) - 100字符命令应完整显示
 echo "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" && echo done
 
-# 测试 mod3 (输出行数) - 应显示99行而非4行
-seq 1 100
+# 测试 mod3+5 (输出行数+提示) - 99行无提示，100行有提示
+seq 1 99   # 应显示99行，无 "press Ctrl+O" 提示
+seq 1 100  # 应显示99行，有 "press Ctrl+O" 提示
 
 # 测试 mod4 (diff行数) - 需要编辑文件看diff
 seq 1 100 > /tmp/test100.txt
@@ -36,19 +37,20 @@ seq 1 100 > /tmp/test100.txt
 │ line 1                                                             │
 │ ...                                                                │
 │ line 4                                                    ← mod3   │
-│ ... output truncated. press Ctrl+O                                 │
+│ ... output truncated. press Ctrl+O for detailed view      ← mod5   │
 ├────────────────────────────────────────────────────────────────────┤
 │ EDIT  (README.md) +10 -5                                           │
 │ ... (truncated after 20 lines)                            ← mod4   │
-│ ... output truncated. press Ctrl+O                                 │
+│ ... output truncated. press Ctrl+O for detailed view               │
 └────────────────────────────────────────────────────────────────────┘
 
 mod1: "command truncated. press Ctrl+O" → hidden
 mod2: command >50 chars truncated → >99 chars
 mod3: output truncated at 4 lines → 99 lines
 mod4: diff truncated at 20 lines → 99 lines
+mod5: output hint "press Ctrl+O" shows when >4 lines → >99 lines
 
-select: 1,2,3,4 / all / restore
+select: 1,2,3,4,5 / all / restore
 ```
 
 用户选择后，执行对应修改。
@@ -82,19 +84,23 @@ strings ~/.local/bin/droid | grep -E "var [A-Z]{2}=20,"
 | 1 截断条件  | `isTruncated`    | `if\(!V&&!V\)return\{text:V,isTruncated:!1\}` | `if(!H&&!Q)return{text:A,isTruncated:!1}` |
 | 2 命令阈值  | `command.length` | `command\.length>\d+`                   | `command.length>50`       |
 | 3 输出预览  | `exec-preview`   | `slice\(0,\d\),V=V\.length` (marker前500字节) | `slice(0,4),D=q.length`   |
-| 3b 字节补偿 | (全局唯一)       | `V=80,V=3\)` (截断函数参数)             | `R=80,T=3)`               |
 | 4 diff 行数 | (后跟变量声明)   | `var V=20,V,` (后跟逗号+变量)           | `var LD=20,UDR,`          |
+| 5 输出提示  | `exec-preview`   | `,V>4&&V\.jsxDEV` (marker附近)          | `,D>4&&q1.jsxDEV`         |
 
 ### 字节补偿池
 
-修改 3 `slice(0,4)→slice(0,99)` 多 1 字节，需要从截断函数参数补回。
+修改 3 和 5 各 +1 字节，共 +2 字节，需要补偿。
 
-截断函数被修改 1 短路后，参数值无所谓，可用来平衡字节：
+**补偿点：截断函数内的 `substring`**（被 mod1 短路后永远不执行）
 
-| 补偿项 | 位置              | v0.46.0 | 可调范围               |
-| ------ | ----------------- | ------- | ---------------------- |
-| 参数 1 | 截断函数第 2 参数 | `=80,`  | 80→8 (-1), 80→800 (+1) |
-| 参数 2 | 截断函数第 3 参数 | `=3)`   | 3→33 (+1)              |
+| 补偿点 | 位置 | 原始 | 补偿范围 |
+| ------ | ---- | ---- | -------- |
+| substring | 截断函数内 `X.substring(0,Y)` | 9 字符 | **-9 到 +∞ bytes** |
+
+用法：`python3 comp_substring.py <bytes>`
+- `comp_substring.py -2` — 缩减 2 字节（当前默认，补偿 mod3+mod5）
+- `comp_substring.py -9` — 最大缩减 9 字节
+- `comp_substring.py +10` — 扩展 10 字节（无上限）
 
 ## 修改原理
 
@@ -146,13 +152,17 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 - 原来只显示前 4 行输出
 - 现在显示前 99 行
 
-**字节长度补偿**: `slice(0,4)` → `slice(0,99)` 多 1 字节，从截断函数参数补：
+### 修改 5: 输出提示条件
 
-```plain
-slice(0,4)  → slice(0,99)   +1字节
-R=80        → R=8           -1字节  (截断函数被修改1短路，参数值无所谓)
-总计: 0字节
-```
+**位置**: 命令执行结果显示区域（exec-preview 附近）
+
+**修改**: `>4&&` → `>99&&`
+
+- 原来超过 4 行就显示 "press Ctrl+O" 提示
+- 现在超过 99 行才显示提示
+- 配合 mod3 的 99 行截断，提示只在实际被截断时显示
+
+**字节补偿**: mod3(+1) + mod5(+1) = +2 bytes，用 `comp_substring.py -2` 补偿
 
 ### 修改 4: diff/edit 显示行数
 
@@ -170,8 +180,9 @@ R=80        → R=8           -1字节  (截断函数被修改1短路，参数�
 | 1   | 截断条件  | `if(!H&&!Q)` | `if(!0\|\|!Q)` | 0    | 核心：永远返回原文   |
 | 2   | 命令阈值  | `length>50`  | `length>99`    | 0    | 命令文本显示长度     |
 | 3   | 输出预览  | `slice(0,4)` | `slice(0,99)`  | +1   | 输出内容显示行数     |
-| 3b  | 字节补偿  | `X=80,Y=3)`  | `X=8,Y=3)`     | -1   | 截断函数参数(被短路) |
 | 4   | diff 行数 | `LD=20`      | `LD=99`        | 0    | Edit diff 显示行数   |
+| 5   | 输出提示  | `>4&&`       | `>99&&`        | +1   | 超99行才显示提示     |
+| 补偿 | substring | `substring`  | `xxxxxxx`      | -2   | 被短路，可任意调整   |
 
 ## 修改脚本
 
@@ -182,19 +193,28 @@ R=80        → R=8           -1字节  (截断函数被修改1短路，参数�
 ```bash
 mods/mod1_truncate_condition.py  # 截断条件短路 (0 bytes)
 mods/mod2_command_length.py      # 命令阈值 50→99 (0 bytes)
-mods/mod3_output_lines.py        # 输出行数 4→99 (+1 byte，需补偿)
+mods/mod3_output_lines.py        # 输出行数 4→99 (+1 byte)
 mods/mod4_diff_lines.py          # diff行数 20→99 (0 bytes)
+mods/mod5_exec_hint.py           # 输出提示 >4→>99 (+1 byte)
 ```
 
 ### compensations/ - 字节补偿
 
-mod3 会 +1 byte，必须用补偿脚本平衡，否则二进制损坏。
+mod3 + mod5 共 +2 bytes，必须用补偿脚本平衡，否则二进制损坏。
 
 ```bash
-compensations/comp_r80_to_r8.py    # R=80→R=8 (-1 byte) ← 常用
-compensations/comp_r80_to_r800.py  # R=80→R=800 (+1 byte)
-compensations/comp_t3_to_t33.py    # T=3→T=33 (+1 byte)
+compensations/comp_substring.py <bytes>  # 范围：-9 到 +∞ bytes
+compensations/comp_r80_to_r8.py          # 固定 -1 byte
 ```
+
+**用法**：
+```bash
+python3 comp_substring.py       # 默认 -2 bytes (补偿 mod3+mod5)
+python3 comp_substring.py -9    # 最大缩减 9 bytes
+python3 comp_substring.py +10   # 扩展 10 bytes (无上限)
+```
+
+原理：修改被 mod1 短路的 `substring` 函数名长度，该代码永远不执行，可任意调整。
 
 ### 执行示例
 
@@ -206,8 +226,9 @@ codesign --remove-signature ~/.local/bin/droid
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod2_command_length.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py
-python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_r80_to_r8.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod5_exec_hint.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -2
 
 # 3. 重新签名
 codesign -s - ~/.local/bin/droid
@@ -260,8 +281,9 @@ codesign -s - ~/.local/bin/droid
 # 测试修改1+2 (命令截断)
 echo "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" && echo done
 
-# 测试修改3 (输出行数)
-seq 1 100
+# 测试修改3+5 (输出行数+提示)
+seq 1 99   # 99行无提示
+seq 1 100  # 100行有提示
 
 # 测试修改4 (diff行数) - 先创建文件
 seq 1 100 > /tmp/test100.txt
@@ -272,7 +294,7 @@ seq 1 100 > /tmp/test100.txt
 
 - 修改 1: 命令框不再显示 "command truncated. press Ctrl+O for detailed view"
 - 修改 2: 100 字符的命令完整显示
-- 修改 3: 输出显示 99 行（原来只显示 4 行）
+- 修改 3+5: `seq 1 99` 显示 99 行无提示，`seq 1 100` 显示 99 行有提示
 - 修改 4: diff 显示超过 20 行（原来只显示 20 行）
 
 ## 恢复原版

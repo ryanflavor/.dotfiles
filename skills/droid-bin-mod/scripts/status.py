@@ -31,16 +31,15 @@ elif b'command.length>50' in data:
 else:
     results['mod2'] = 'unknown'
 
-# mod3b: 字节补偿 (80和3是截断参数，全局唯一组合)
-if b'=80,' in data and b'=3)' in data:
-    results['mod3b'] = 'original'
-elif b'=8,' in data and b'=3)' in data:
-    results['mod3b'] = 'modified'
+# mod3: 输出行数 slice(0,4) → slice(0,99)
+if b'slice(0,99)' in data and b'exec-preview' in data:
+    results['mod3'] = 'modified'
+elif b'slice(0,4)' in data and b'exec-preview' in data:
+    results['mod3'] = 'original'
 else:
-    results['mod3b'] = 'unknown'
+    results['mod3'] = 'unknown'
 
 # mod4: diff行数 (检测 =20, 或 =99, 配合 var 声明上下文)
-# 用 exec-preview 附近的特征来间接判断
 import re
 V = rb'[A-Za-z_$][A-Za-z0-9_$]*'
 if re.search(rb'var ' + V + rb'=99,' + V + rb',', data):
@@ -50,7 +49,16 @@ elif re.search(rb'var ' + V + rb'=20,' + V + rb',', data):
 else:
     results['mod4'] = 'unknown'
 
+# mod5: exec输出提示条件 >4 → >99
+if re.search(rb',' + V + rb'>99&&' + V + rb'\.jsxDEV', data):
+    results['mod5'] = 'modified'
+elif re.search(rb',' + V + rb'>4&&' + V + rb'\.jsxDEV', data):
+    results['mod5'] = 'original'
+else:
+    results['mod5'] = 'unknown'
+
 # 输出
+total = 5
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 
@@ -61,9 +69,9 @@ for name, status in results.items():
     print(f"  {icon} {name}: {label}")
 
 print()
-if mod_count == 4:
+if mod_count == total:
     print("结论: 已修改")
-elif orig_count == 4:
+elif orig_count == total:
     print("结论: 原版")
 else:
-    print(f"结论: 部分修改 ({mod_count}/4)")
+    print(f"结论: 部分修改 ({mod_count}/{total})")
