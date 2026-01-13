@@ -222,11 +222,11 @@ python3 comp_substring.py +10   # 扩展 10 bytes (无上限)
 
 原理：修改被 mod1 短路的 `substring` 函数名长度，该代码永远不执行，可任意调整。
 
-### 执行示例
+### 执行示例（跨平台）
 
 ```bash
-# 1. 移除签名
-codesign --remove-signature ~/.local/bin/droid
+# 1. macOS: 移除签名
+[[ "$OSTYPE" == "darwin"* ]] && codesign --remove-signature ~/.local/bin/droid
 
 # 2. 执行修改
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
@@ -236,9 +236,11 @@ python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod5_exec_hint.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -2
 
-# 3. 重新签名
-codesign -s - ~/.local/bin/droid
+# 3. macOS: 重新签名
+[[ "$OSTYPE" == "darwin"* ]] && codesign -s - ~/.local/bin/droid
 ```
+
+**说明**：`[[ "$OSTYPE" == "darwin"* ]]` 自动检测平台，macOS 执行签名操作，Linux 跳过。
 
 ### 工具脚本
 
@@ -251,23 +253,28 @@ python3 ~/.factory/skills/droid-bin-mod/scripts/restore.py  # 恢复原版
 
 ## 前提条件
 
-- macOS 系统（需要 codesign 命令）
+- macOS 或 Linux 系统
 - Python 3
 - droid 二进制位于 `~/.local/bin/droid`
 
-## 修改流程
+**平台差异**：
+- macOS: 需要 codesign 移除/重签签名
+- Linux: 无需签名操作，直接修改即可
+- Windows: 未测试，不支持
+
+## 修改流程（跨平台）
 
 ```bash
 # 1. 备份 (带版本号)
 cp ~/.local/bin/droid ~/.local/bin/droid.backup.$(~/.local/bin/droid --version)
 
-# 2. 移除签名
-codesign --remove-signature ~/.local/bin/droid
+# 2. macOS: 移除签名
+[[ "$OSTYPE" == "darwin"* ]] && codesign --remove-signature ~/.local/bin/droid
 
-# 3. 手动修改二进制 (参考上面的修改原理)
+# 3. 执行修改脚本 (参考上面的修改原理)
 
-# 4. 重新签名
-codesign -s - ~/.local/bin/droid
+# 4. macOS: 重新签名
+[[ "$OSTYPE" == "darwin"* ]] && codesign -s - ~/.local/bin/droid
 
 # 5. 验证
 ~/.local/bin/droid --version
@@ -305,7 +312,7 @@ seq 1 100 > /tmp/test100.txt
 
 ## 恢复原版
 
-**必须用脚本恢复**（直接 cp 会因 macOS 元数据问题导致 SIGKILL）：
+**推荐用脚本恢复**（macOS 上直接 cp 会因元数据问题导致 SIGKILL，Linux 可直接 cp）：
 
 ```bash
 python3 ~/.factory/skills/droid-bin-mod/scripts/restore.py --list  # 查看备份
@@ -316,7 +323,7 @@ python3 ~/.factory/skills/droid-bin-mod/scripts/restore.py 0.46.0  # 恢复指�
 ## 禁用自动更新
 
 ```bash
-# 添加到 ~/.zshrc
+# 添加到 ~/.zshrc 或 ~/.bashrc
 export DROID_DISABLE_AUTO_UPDATE=1
 ```
 
@@ -339,7 +346,7 @@ strings ~/.local/bin/droid | grep -E "=80,|=3\)|>50|=20,"
 ```
 
 - `80` - 截断宽度限制
-- `3` - 截断行数限制  
+- `3` - 截断行数限制
 - `50` - 命令长度阈值
 - `20` - diff 显示行数
 
