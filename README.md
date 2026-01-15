@@ -2,15 +2,29 @@
 
 [中文](./README.zh-CN.md)
 
-Share commands, skills, and global agent instructions across Claude Code, Codex, Droid, and Antigravity.
+Share commands, skills, droids, and BMAD workflows across Claude Code, Codex, Droid, and Antigravity.
+
+## Features
+
+- **36 BMAD workflow commands** - Product brief, PRD, architecture, sprint planning, etc.
+- **10 BMAD agent droids** - PM, Architect, Dev, UX Designer, etc.
+- **bmad-init skill** - Initialize BMAD in any project
+
+## Install
+
+```bash
+git clone https://github.com/ryanflavor/.dotfiles.git ~/.dotfiles
+cd ~/.dotfiles && ./scripts/install.sh
+```
 
 ## What it does
 
-**Commands:**
+**Commands & Droids:**
 ```
 ~/.claude/commands   → ~/.dotfiles/commands (symlink)
 ~/.codex/prompts     → ~/.dotfiles/commands (symlink)
 ~/.factory/commands  → ~/.dotfiles/commands (symlink)
+~/.factory/droids    → ~/.dotfiles/droids (symlink)
 ~/.gemini/antigravity/global_workflows → ~/.dotfiles/commands (symlink)
 ```
 
@@ -22,40 +36,54 @@ Share commands, skills, and global agent instructions across Claude Code, Codex,
 ~/.gemini/antigravity/skills    → ~/.dotfiles/skills (symlink)
 ```
 
-**Global Agent Instructions (AGENTS.md):**
+**Global Agent Instructions:**
 ```
 ~/.claude/CLAUDE.md  → ~/.dotfiles/agents/AGENTS.md (symlink)
 ~/.factory/AGENTS.md → ~/.dotfiles/agents/AGENTS.md (symlink)
 ~/.codex/AGENTS.md   → ~/.dotfiles/agents/AGENTS.md (symlink)
 ```
 
-Edit once, apply everywhere.
-
-## Install
-```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/install.sh | bash
+**BMAD Source (for bmad-init):**
 ```
+~/.dotfiles/_bmad/   (BMAD v6.0.0-alpha.23 source files)
+```
+
+## BMAD Usage
+
+1. Initialize BMAD in your project:
+   ```
+   bmad init
+   ```
+
+2. Use BMAD commands:
+   ```
+   /bmad__bmm__workflow__create-product-brief
+   /bmad__bmm__workflow__prd
+   /bmad__bmm__workflow__create-architecture
+   ```
+
+3. Use BMAD agents (droids):
+   ```
+   @bmad__bmm__pm
+   @bmad__bmm__architect
+   @bmad__bmm__dev
+   ```
 
 ## Supported CLIs
 
 - Claude Code (`~/.claude/commands`)
 - Codex (`~/.codex/prompts`)
-- Droid (`~/.factory/commands`)
+- Factory Droid (`~/.factory/commands`, `~/.factory/droids`)
 - Antigravity (`~/.gemini/antigravity/global_workflows`)
-
-Want another IDE/CLI? PR to `scripts/config.json`.
 
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/uninstall.sh | bash
+~/.dotfiles/scripts/uninstall.sh
 ```
 
-## Advanced (optional)
-
-- Custom install path (defaults to `~/.dotfiles`):
+## Update
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/install.sh | bash -s -- ~/.my-dotfiles
-curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/uninstall.sh | bash -s -- ~/.my-dotfiles
+cd ~/.dotfiles && git pull
 ```
