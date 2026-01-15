@@ -10,14 +10,25 @@ expand_path() {
     esac
 }
 
-# 通过参数或环境变量指定安装目录，默认 ~/.dotfiles
+# 通过参数或环境变量指定安装目录
+# 优先级: 命令行参数 > 环境变量 > 脚本所在目录的父目录 > ~/.dotfiles
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
 if [ "${1:-}" != "" ]; then
     DOTFILES_DIR="$(expand_path "$1")"
+elif [ "${DOTFILES_DIR:-}" != "" ]; then
+    DOTFILES_DIR="$(expand_path "$DOTFILES_DIR")"
+elif [ -d "$SCRIPT_PARENT_DIR/commands" ] && [ -d "$SCRIPT_PARENT_DIR/skills" ]; then
+    # 脚本在 dotfiles/scripts/ 目录下，使用父目录
+    DOTFILES_DIR="$SCRIPT_PARENT_DIR"
 else
-    DOTFILES_DIR="$(expand_path "${DOTFILES_DIR:-$HOME/.dotfiles}")"
+    DOTFILES_DIR="$(expand_path "$HOME/.dotfiles")"
 fi
 COMMANDS_DIR="$DOTFILES_DIR/commands"
 SKILLS_DIR="$DOTFILES_DIR/skills"
+DROIDS_DIR="$DOTFILES_DIR/droids"
+BMAD_SRC_DIR="$DOTFILES_DIR/_bmad"
 AGENTS_FILE="$DOTFILES_DIR/agents/AGENTS.md"
 
 CONFIG_URL="${CONFIG_URL:-https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/config.json}"
@@ -41,10 +52,15 @@ DEFAULT_AGENT_TARGETS=(
     "~/.codex/AGENTS.md"
 )
 
+DEFAULT_DROID_TARGETS=(
+    "~/.factory/droids"
+)
+
 log() { echo "[info] $*"; }
 warn() { echo "[warn] $*" >&2; }
 LINK_TARGETS=()
 SKILL_TARGETS=()
+DROID_TARGETS=()
 AGENT_TARGETS=()
 
 ensure_description() {
@@ -91,6 +107,9 @@ if command -v curl >/dev/null 2>&1; then
             while IFS= read -r line; do
                 [ -n "$line" ] && AGENT_TARGETS+=("$line")
             done < <(echo "$REMOTE_CONFIG" | jq -r '.agents[]' 2>/dev/null)
+            while IFS= read -r line; do
+                [ -n "$line" ] && DROID_TARGETS+=("$line")
+            done < <(echo "$REMOTE_CONFIG" | jq -r '.droids[]' 2>/dev/null)
             if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
                 warn "远端配置缺少 commands 或为空，使用默认链接目标"
             fi
@@ -116,7 +135,11 @@ if [ "${#AGENT_TARGETS[@]}" -eq 0 ]; then
     AGENT_TARGETS=("${DEFAULT_AGENT_TARGETS[@]}")
 fi
 
-mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR" "$SKILLS_DIR" "$(dirname "$AGENTS_FILE")"
+if [ "${#DROID_TARGETS[@]}" -eq 0 ]; then
+    DROID_TARGETS=("${DEFAULT_DROID_TARGETS[@]}")
+fi
+
+mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR" "$SKILLS_DIR" "$DROIDS_DIR" "$(dirname "$AGENTS_FILE")"
 
 # 如果源文件不存在，合并所有现有 agents 文件内容
 if [ ! -f "$AGENTS_FILE" ]; then
@@ -195,6 +218,59 @@ for raw_dir in "${SKILL_TARGETS[@]}"; do
     ln -s "$SKILLS_DIR" "$dir"
     log "创建软链: $dir -> $SKILLS_DIR"
 done
+
+# 处理 droids 目录软链接
+for raw_dir in "${DROID_TARGETS[@]}"; do
+    dir="$(expand_path "$raw_dir")"
+
+    if [ -L "$dir" ]; then
+        target="$(readlink "$dir")"
+        if [ "$target" = "$DROIDS_DIR" ]; then
+            log "已存在软链: $dir -> $target"
+            continue
+        fi
+        rm "$dir"
+    elif [ -f "$dir" ]; then
+        warn "跳过：$dir 是普通文件"
+        continue
+    elif [ -d "$dir" ]; then
+        backup="${dir}.bak-$(date +%Y%m%d%H%M%S)"
+        mv "$dir" "$backup"
+        log "备份原目录 -> $backup"
+        if command -v rsync >/dev/null 2>&1; then
+            rsync -a --ignore-existing "$backup"/ "$DROIDS_DIR"/ || warn "复制 $backup 时出错"
+        else
+            warn "未找到 rsync，使用 cp -an 复制，可能覆盖同名文件"
+            cp -an "$backup"/. "$DROIDS_DIR"/ || warn "复制 $backup 时出错"
+        fi
+    fi
+
+    mkdir -p "$(dirname "$dir")"
+
+    ln -s "$DROIDS_DIR" "$dir"
+    log "创建软链: $dir -> $DROIDS_DIR"
+done
+
+# 创建 ~/.dotfiles/_bmad symlink (BMAD 源模板，供 bmad-init 使用)
+BMAD_LINK="$HOME/.dotfiles/_bmad"
+if [ -d "$BMAD_SRC_DIR" ]; then
+    if [ -L "$BMAD_LINK" ]; then
+        target="$(readlink "$BMAD_LINK")"
+        if [ "$target" = "$BMAD_SRC_DIR" ]; then
+            log "已存在软链: $BMAD_LINK -> $target"
+        else
+            rm "$BMAD_LINK"
+            ln -s "$BMAD_SRC_DIR" "$BMAD_LINK"
+            log "创建软链: $BMAD_LINK -> $BMAD_SRC_DIR"
+        fi
+    elif [ ! -e "$BMAD_LINK" ]; then
+        mkdir -p "$(dirname "$BMAD_LINK")"
+        ln -s "$BMAD_SRC_DIR" "$BMAD_LINK"
+        log "创建软链: $BMAD_LINK -> $BMAD_SRC_DIR"
+    else
+        warn "跳过：$BMAD_LINK 已存在且不是软链"
+    fi
+fi
 
 # 处理 agents 文件软链接（文件级别，非目录）
 for raw_file in "${AGENT_TARGETS[@]}"; do
