@@ -8,8 +8,8 @@
 flowchart TD
     Start([开始]) --> Get[获取所有状态]
     Get --> Gen[生成汇总内容]
-    Gen --> Edit[编辑进度评论]
-    Edit --> End([结束])
+    Gen --> Post[发布汇总评论]
+    Post --> End([结束])
 ```
 
 ## 5.1 获取状态
