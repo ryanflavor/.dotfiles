@@ -67,7 +67,7 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+
         run: |
           $DROID_PATH exec -m claude-opus-4-5-20251101 -r high --auto high \
             "执行 duo-review skill 审查 PR #$PR_NUMBER (分支: $PR_BRANCH → $BASE_BRANCH, 仓库: $REPO)"
