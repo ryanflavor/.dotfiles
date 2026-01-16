@@ -13,7 +13,10 @@ description: 双 AI Agent (GPT-5.1 Codex Max + Claude Opus 4.5) 交叉审查 PR�
 | **Codex**        | GPT-5.1 Codex Max   | PR 审查、交叉确认、验证修复    |
 | **Opus**         | Claude Opus 4.5     | PR 审查、交叉确认、执行修复    |
 
-**重要：Orchestrator 不要读 PR diff 和 REVIEW.md，这是 Codex/Opus 的工作。Orchestrator 只负责编排和判断。**
+**⚠️ 重要：Orchestrator 不要读 PR diff、REVIEW.md 或任何代码文件！这是 Codex/Opus 的工作。Orchestrator 只负责：**
+1. **执行脚本**（清理评论、创建评论、启动 Codex/Opus）
+2. **等待和判断**（读取评论结果、判断共识）
+3. **立即启动**（准备工作完成后立即并行启动 Codex/Opus，不要先读 diff）
 
 ## 输入
 
@@ -21,6 +24,19 @@ description: 双 AI Agent (GPT-5.1 Codex Max + Claude Opus 4.5) 交叉审查 PR�
 - `PR_BRANCH`: PR 分支名
 - `BASE_BRANCH`: 目标分支
 - `REPO`: 仓库名（格式 owner/repo）
+
+## 可用脚本
+
+| 脚本 | 用途 | 用法 |
+|------|------|------|
+| `scripts/cleanup-comments.sh` | 清理所有 duo 评论 | `cleanup-comments.sh <PR_NUMBER> <REPO>` |
+| `scripts/post-comment.sh` | 发布评论，返回 ID | `post-comment.sh <PR_NUMBER> <REPO> "<BODY>"` |
+| `scripts/edit-comment.sh` | 编辑评论（stdin） | `echo "<BODY>" \| edit-comment.sh <COMMENT_ID>` |
+| `scripts/codex-exec.sh` | 启动 Codex | `codex-exec.sh "<PROMPT>"` |
+| `scripts/opus-exec.sh` | 启动 Opus | `opus-exec.sh "<PROMPT>"` |
+| `scripts/codex-resume.sh` | 恢复 Codex 会话 | `codex-resume.sh <SESSION_ID> "<PROMPT>"` |
+| `scripts/opus-resume.sh` | 恢复 Opus 会话 | `opus-resume.sh <SESSION_ID> "<PROMPT>"` |
+| `scripts/get-time.sh` | 获取新加坡时间 | `get-time.sh` |
 
 ## 准备工作
 
