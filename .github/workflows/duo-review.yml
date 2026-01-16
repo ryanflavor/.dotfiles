@@ -69,5 +69,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash -l {0}
         run: |
+          echo "FACTORY_API_KEY set: ${FACTORY_API_KEY:+yes}"
+          echo "DROID_PATH: $DROID_PATH"
+          $DROID_PATH --version || echo "droid version failed"
           $DROID_PATH exec -m claude-opus-4-5-20251101 -r high --auto high \
             "执行 duo-review skill 审查 PR #$PR_NUMBER (分支: $PR_BRANCH → $BASE_BRANCH, 仓库: $REPO)"
