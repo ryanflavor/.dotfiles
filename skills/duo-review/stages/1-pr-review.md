@@ -56,7 +56,7 @@ $S/opus-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 ## Steps
 1. Read REVIEW.md for project conventions
 2. Run: gh pr diff $PR_NUMBER --repo $REPO
-3. Update your comment ($OPUS_COMMENT) using \$S/edit-comment.sh
+3. Update your comment ($OPUS_COMMENT) using $S/edit-comment.sh
 
 ### How Many Findings to Return
 Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
@@ -90,10 +90,10 @@ Your review comments should be:
 - 🟡 [P2] - Normal. To be fixed eventually
 - 🟢 [P3] - Low. Nice to have
 
-## IMPORTANT: Output Format (MUST follow exactly, use \$S/get-time.sh for time)
+## IMPORTANT: Output Format (MUST follow exactly)
 <!-- duo-opus-r1 -->
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus | PR #$PR_NUMBER
-> 🕐 \$(\$S/get-time.sh) (GMT+8)
+> 🕐 \$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') (GMT+8)
 
 ### Findings
 (No issues found OR list by priority)
@@ -110,7 +110,7 @@ $S/codex-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 ## Steps
 1. Read REVIEW.md for project conventions
 2. Run: gh pr diff $PR_NUMBER --repo $REPO
-3. Update your comment ($CODEX_COMMENT) using \$S/edit-comment.sh
+3. Update your comment ($CODEX_COMMENT) using $S/edit-comment.sh
 
 ### How Many Findings to Return
 Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
@@ -144,10 +144,10 @@ Your review comments should be:
 - 🟡 [P2] - Normal. To be fixed eventually
 - 🟢 [P3] - Low. Nice to have
 
-## IMPORTANT: Output Format (MUST follow exactly, use \$S/get-time.sh for time)
+## IMPORTANT: Output Format (MUST follow exactly)
 <!-- duo-codex-r1 -->
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex | PR #$PR_NUMBER
-> 🕐 \$(\$S/get-time.sh) (GMT+8)
+> 🕐 \$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') (GMT+8)
 
 ### Findings
 (No issues found OR list by priority)

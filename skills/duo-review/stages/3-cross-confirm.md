@@ -80,9 +80,9 @@ $OPUS_FINDINGS
 
 ## 完成后
 执行以下命令记录结果：
-- 如果认可所有问题: $S/duo-set.sh $PR_NUMBER s3:codex:agrees 1
-- 如果有不认可的: $S/duo-set.sh $PR_NUMBER s3:codex:agrees 0
-然后: $S/duo-set.sh $PR_NUMBER s3:codex:status done
+- 如果认可所有问题: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 1
+- 如果有不认可的: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 0
+然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
 ## 发布评论
 用 gh pr comment 发布你的评估结果
@@ -137,9 +137,9 @@ $CODEX_FINDINGS
 
 ## 完成后
 执行以下命令记录结果：
-- 如果认可所有问题: $S/duo-set.sh $PR_NUMBER s3:opus:agrees 1
-- 如果有不认可的: $S/duo-set.sh $PR_NUMBER s3:opus:agrees 0
-然后: $S/duo-set.sh $PR_NUMBER s3:opus:status done
+- 如果认可所有问题: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 1
+- 如果有不认可的: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 0
+然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
 ## 发布评论
 用 gh pr comment 发布你的评估结果
@@ -207,8 +207,8 @@ $S/opus-resume.sh $OPUS_SESSION "
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-$S/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
-$S/duo-set.sh $PR_NUMBER s3:opus:status done
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
 ## 发布评论
 用 gh pr comment 发布
@@ -233,8 +233,8 @@ $S/codex-resume.sh $CODEX_SESSION "
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-$S/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
-$S/duo-set.sh $PR_NUMBER s3:codex:status done
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
 ## 发布评论
 用 gh pr comment 发布

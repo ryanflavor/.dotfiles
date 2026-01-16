@@ -55,8 +55,8 @@ $S/opus-resume.sh $OPUS_SESSION "
 ## 完成后
 git add -A
 git commit -m 'fix(duo): ...'
-$S/duo-set.sh $PR_NUMBER s4:opus:commit \$(git rev-parse HEAD)
-$S/duo-set.sh $PR_NUMBER s4:opus:status done
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:opus:commit \$(git rev-parse HEAD)
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:opus:status done
 
 ## 发布评论
 用 gh pr comment 说明修复内容
@@ -94,9 +94,9 @@ git diff origin/$PR_BRANCH..HEAD
 3. 代码质量是否符合规范
 
 ## 完成后
-- 验证通过: $S/duo-set.sh $PR_NUMBER s4:verified 1
-- 验证失败: $S/duo-set.sh $PR_NUMBER s4:verified 0
-然后: $S/duo-set.sh $PR_NUMBER s4:codex:status done
+- 验证通过: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:verified 1
+- 验证失败: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:verified 0
+然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:codex:status done
 
 ## 发布评论
 用 gh pr comment 发布验证结果
