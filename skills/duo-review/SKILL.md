@@ -24,42 +24,35 @@ description: 双 AI Agent (GPT-5.1 Codex Max + Claude Opus 4.5) 交叉审查 PR�
 
 ## 准备工作
 
-### 1. 清理旧评论（必须先执行）
+### 1. 清理所有旧评论
 
 **必须调用脚本，不要自己写删除逻辑**：
 
 ```bash
-.factory/skills/duo-review/scripts/cleanup-comments.sh $PR_NUMBER $REPO
+scripts/cleanup-comments.sh $PR_NUMBER $REPO
 ```
 
-### 2. 查找或创建进度评论
+### 2. 创建进度评论
 
 ```bash
-PROGRESS_COMMENT_ID=$(gh pr view $PR_NUMBER --repo $REPO --json comments -q '.comments[] | select(.body | contains("<!-- duo-review-progress -->")) | .id' | head -1)
-
-if [ -z "$PROGRESS_COMMENT_ID" ]; then
-  PROGRESS_COMMENT_ID=$(.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO "
-<!-- duo-review-progress -->
+PROGRESS_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "<!-- duo-review-progress -->
 正在审查 PR #$PR_NUMBER... <img src=\"https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f\" width=\"14\" />
-
-- [ ] Codex PR 审查
-- [ ] Opus PR 审查
-- [ ] 判断共识
 ")
-fi
 ```
 
-随着流程进行，用 `scripts/edit-comment.sh $PROGRESS_COMMENT_ID "新内容"` 更新（注意：只需两个参数，不需要 REPO）：
+### 3. 创建 Codex/Opus 占位评论
 
-```markdown
-正在审查 PR #85... <img src="..." width="14" />
+```bash
+CODEX_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-r1 -->
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中...
+")
 
-- [x] Codex PR 审查
-- [x] Opus PR 审查
-- [ ] 判断共识 ← 当前
+OPUS_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-r1 -->
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中...
+")
 ```
 
-**流程结束后编辑为汇总内容**（不删除，直接替换进度为最终汇总）。
+**流程结束后编辑进度评论为汇总内容**。
 
 ### 图标
 
