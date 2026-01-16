@@ -16,10 +16,12 @@ if [ -n "$GH_TOKEN" ]; then
   export GH_TOKEN
 fi
 
-# 发布评论
-gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY"
+# 发布评论（URL 输出到 stderr）
+URL=$(gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY")
+echo "$URL" >&2
 
-# 获取刚发布的评论 ID（最新一条包含特定标记的评论）
-COMMENT_ID=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments -q '.comments[-1].id')
+# 获取刚发布的评论 node_id（最新一条评论）
+NODE_ID=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments -q '.comments[-1].id')
 
-echo "$COMMENT_ID"
+# 只输出 node_id 到 stdout
+echo "$NODE_ID"
