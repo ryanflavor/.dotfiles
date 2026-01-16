@@ -80,12 +80,22 @@ $OPUS_FINDINGS
 
 ## 完成后
 执行以下命令记录结果：
-- 如果认可所有问题: $S/duo-set.sh $PR_NUMBER s3:codex:agrees 1
-- 如果有不认可的: $S/duo-set.sh $PR_NUMBER s3:codex:agrees 0
-然后: $S/duo-set.sh $PR_NUMBER s3:codex:status done
+- 如果认可所有问题: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 1
+- 如果有不认可的: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 0
+然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
 ## 发布评论
-用 gh pr comment 发布你的评估结果
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+
+### 评论格式
+<!-- duo-cross-codex -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 交叉确认 | PR #$PR_NUMBER
+
+### Opus 发现评估
+(逐个列出 ✅ 认可 / ❌ 不认可)
+
+### 共识
+(总结双方共识)
 "
 ```
 
@@ -137,12 +147,22 @@ $CODEX_FINDINGS
 
 ## 完成后
 执行以下命令记录结果：
-- 如果认可所有问题: $S/duo-set.sh $PR_NUMBER s3:opus:agrees 1
-- 如果有不认可的: $S/duo-set.sh $PR_NUMBER s3:opus:agrees 0
-然后: $S/duo-set.sh $PR_NUMBER s3:opus:status done
+- 如果认可所有问题: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 1
+- 如果有不认可的: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 0
+然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
 ## 发布评论
-用 gh pr comment 发布你的评估结果
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+
+### 评论格式
+<!-- duo-cross-opus -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 交叉确认 | PR #$PR_NUMBER
+
+### Codex 发现评估
+(逐个列出 ✅ 认可 / ❌ 不认可)
+
+### 共识
+(总结双方共识)
 "
 ```
 
@@ -207,11 +227,17 @@ $S/opus-resume.sh $OPUS_SESSION "
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-$S/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
-$S/duo-set.sh $PR_NUMBER s3:opus:status done
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
 ## 发布评论
-用 gh pr comment 发布
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+
+### 评论格式
+<!-- duo-cross-opus-rN -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 回应 | Round N
+
+(对 Codex 观点的回应)
 "
 ```
 
@@ -233,11 +259,17 @@ $S/codex-resume.sh $CODEX_SESSION "
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-$S/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
-$S/duo-set.sh $PR_NUMBER s3:codex:status done
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
+~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
 ## 发布评论
-用 gh pr comment 发布
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+
+### 评论格式
+<!-- duo-cross-codex-rN -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 回应 | Round N
+
+(对 Opus 观点的回应)
 "
 ```
 
