@@ -43,6 +43,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Pull latest skills
+        run: |
+          cd ~/.dotfiles && git pull --ff-only
+
       - name: Duo Review
         env:
           PR_NUMBER: ${{ env.PR_NUMBER }}
