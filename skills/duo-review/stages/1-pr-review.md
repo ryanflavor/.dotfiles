@@ -61,7 +61,7 @@ $S/codex-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 ## Steps
 1. Read REVIEW.md for project conventions
 2. Run: gh pr diff $PR_NUMBER --repo $REPO
-3. Update comment: echo 'content' | \$S/edit-comment.sh $CODEX_COMMENT
+3. Update your comment ($CODEX_COMMENT) using \$S/edit-comment.sh
 
 ### How Many Findings to Return
 Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
@@ -115,7 +115,7 @@ $S/opus-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 ## Steps
 1. Read REVIEW.md for project conventions
 2. Run: gh pr diff $PR_NUMBER --repo $REPO
-3. Update comment: echo 'content' | \$S/edit-comment.sh $OPUS_COMMENT
+3. Update your comment ($OPUS_COMMENT) using \$S/edit-comment.sh
 
 ### How Many Findings to Return
 Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
