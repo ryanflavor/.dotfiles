@@ -47,7 +47,16 @@ jobs:
           cd ~/.dotfiles && git pull --ff-only
 
       - name: Set droid path
-        run: echo "DROID_PATH=$(which droid)" >> $GITHUB_ENV
+        run: |
+          # macOS: ~/.local/bin/droid, Linux: ~/.local/bin/droid
+          if [[ -f "$HOME/.local/bin/droid" ]]; then
+            echo "DROID_PATH=$HOME/.local/bin/droid" >> $GITHUB_ENV
+          elif command -v droid &> /dev/null; then
+            echo "DROID_PATH=$(which droid)" >> $GITHUB_ENV
+          else
+            echo "::error::droid not found"
+            exit 1
+          fi
 
       - name: Duo Review
         env:
