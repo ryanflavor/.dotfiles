@@ -95,10 +95,10 @@ Your review comments should be:
 - 🟡 [P2] - Normal. To be fixed eventually
 - 🟢 [P3] - Low. Nice to have
 
-## Output Format
+## IMPORTANT: Output Format (MUST follow exactly, use \$S/get-time.sh for time)
 <!-- duo-codex-r1 -->
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex | PR #$PR_NUMBER
-> 🕐 YYYY-MM-DD HH:MM (GMT+8)
+> 🕐 \$(\$S/get-time.sh) (GMT+8)
 
 ### Findings
 (No issues found OR list by priority)
@@ -149,10 +149,10 @@ Your review comments should be:
 - 🟡 [P2] - Normal. To be fixed eventually
 - 🟢 [P3] - Low. Nice to have
 
-## Output Format
+## IMPORTANT: Output Format (MUST follow exactly, use \$S/get-time.sh for time)
 <!-- duo-opus-r1 -->
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus | PR #$PR_NUMBER
-> 🕐 YYYY-MM-DD HH:MM (GMT+8)
+> 🕐 \$(\$S/get-time.sh) (GMT+8)
 
 ### Findings
 (No issues found OR list by priority)
