@@ -54,6 +54,7 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash -l {0}
         run: |
           $DROID_PATH exec -m claude-opus-4-5-20251101 -r high --auto high \
             --output-format stream-json \
