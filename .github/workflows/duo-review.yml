@@ -67,7 +67,7 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
         run: |
-          # 使用 script 命令模拟 TTY，解决 droid 非交互模式问题
-          script -q -c "$DROID_PATH exec -m claude-opus-4-5-20251101 -r high --auto high \
-            '执行 duo-review skill 审查 PR #$PR_NUMBER (分支: $PR_BRANCH → $BASE_BRANCH, 仓库: $REPO)'" /dev/null
+          $DROID_PATH exec -m claude-opus-4-5-20251101 -r high --auto high \
+            "执行 duo-review skill 审查 PR #$PR_NUMBER (分支: $PR_BRANCH → $BASE_BRANCH, 仓库: $REPO)"
