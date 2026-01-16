@@ -69,9 +69,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash -l {0}
         run: |
+          echo "=== Debug Info ==="
           echo "FACTORY_API_KEY set: ${FACTORY_API_KEY:+yes}"
+          echo "FACTORY_API_KEY length: ${#FACTORY_API_KEY}"
           echo "DROID_PATH: $DROID_PATH"
+          $DROID_PATH --version || echo "droid version check failed"
+          echo "=== Starting Duo Review ==="
           # 使用 stream-json 输出格式，确保在非 TTY 环境下有输出
           $DROID_PATH exec -m claude-opus-4-5-20251101 -r high --auto high \
             --output-format stream-json \
-            "执行 duo-review skill 审查 PR #$PR_NUMBER (分支: $PR_BRANCH → $BASE_BRANCH, 仓库: $REPO)"
+            "执行 duo-review skill 审查 PR #$PR_NUMBER (分支: $PR_BRANCH → $BASE_BRANCH, 仓库: $REPO)" 2>&1 || {
+              echo "=== droid exec failed with exit code $? ==="
+              exit 1
+            }
