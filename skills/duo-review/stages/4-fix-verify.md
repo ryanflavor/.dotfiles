@@ -2,112 +2,111 @@
 
 **执行者**: Orchestrator + Opus + Codex
 
-```mermaid
-flowchart TD
-    A[Orchestrator: 创建分支] --> B[Orchestrator: ROUND=1]
-    B --> C{Orchestrator: ROUND <= 10?}
-    C -->|是| P[Orchestrator: 发布占位评论]
-    P --> D[Opus: 修复]
-    D --> E[Orchestrator: git push]
-    E --> F[Codex: 验证]
-    F --> G{Codex: 验证结果}
-    G -->|通过| H[阶段 5]
-    G -->|失败| I[Orchestrator: ROUND++]
-    I --> C
-    C -->|否| J[阶段 5]
+## 流程
+
+```
+创建分支 → Opus 修复 → push → Codex 验证 → 判断
+    ↑                                        ↓
+    └──────── 验证失败, ROUND++ ─────────────┘
 ```
 
-## 步骤 0: Orchestrator 创建修复分支
+## 初始化
 
 ```bash
+$S/duo-set.sh $PR_NUMBER stage 4
+$S/duo-set.sh $PR_NUMBER s4:round 1
+$S/duo-set.sh $PR_NUMBER s4:branch "bot🤖/pr-$PR_NUMBER"
+
+# 创建修复分支
 git checkout -b "bot🤖/pr-$PR_NUMBER"
-ROUND=1
 ```
 
-## 步骤 1: Orchestrator 发布占位评论
+## 循环（ROUND <= 10）
+
+### 4.1 启动 Opus 修复
 
 ```bash
-FIX_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "
-<!-- duo-opus-fix-{ROUND} -->
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" /> Fix {ROUND} | Opus 4.5 | ✅ PR → ✅ Cross → ⏳ Fix
+OPUS_SESSION=$($S/duo-get.sh $PR_NUMBER s1:opus:session)
+ROUND=$($S/duo-get.sh $PR_NUMBER s4:round)
 
-*正在修复问题...* <img src=\"https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f\" width=\"14\" />
-")
-```
+$S/opus-resume.sh $OPUS_SESSION "
+## 修复共识问题
+读取 PR 评论，找到双方都认可的问题，修复它们。
 
-## 步骤 2: Opus 修复
+## 要求
+- 最小改动
+- commit message: fix(duo): 修复内容
+- git add + git commit
 
-```plain
-scripts/opus-resume.sh $OPUS_SESSION_ID "
-## 读取交叉确认结论
-gh pr view $PR_NUMBER --repo $REPO --json comments -q '[.comments[] | select(.body | contains(\"<!-- duo-\"))] | .[-4:][].body'
+## 完成后
+$S/duo-set.sh $PR_NUMBER s4:opus:status done
+$S/duo-set.sh $PR_NUMBER s4:opus:commit \$(git rev-parse HEAD)
 
-## 修复要求
-- 只修复双方都认可（✅）的问题
-- 保持最小改动
-- commit message 格式：fix(duo): 修复内容
-- 修复后执行 git add 和 git commit
-
-## 输出
-用以下方式编辑占位评论（从 stdin 读取内容）：
-```bash
-echo "评论内容" | scripts/edit-comment.sh $FIX_COMMENT_ID
-```
-
-评论格式：
-<!-- duo-opus-fix-{ROUND} -->
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" /> Fix {ROUND} | Opus 4.5 | ✅ PR → ✅ Cross → ✅ Fix
-> 🕐 时间：(scripts/get-time.sh)
-
-### 修复内容
-(描述你修复了什么)
-
-### Commit
-HASH=\$(git log -1 --format='%H')
-[commit_message](https://github.com/\$REPO/commit/\$HASH)
+## 发布评论
+echo '修复内容...' | $S/edit-comment.sh \$COMMENT_ID
 "
 ```
 
-## 步骤 3: Orchestrator 推送修复
+### 4.2 等待 Opus 修复
 
 ```bash
-git push origin "bot🤖/pr-$PR_NUMBER" --force
+$S/duo-wait.sh $PR_NUMBER s4:opus:status done
 ```
 
-## 步骤 4: Codex 验证
+### 4.3 推送修复
 
-```plain
-scripts/codex-resume.sh $CODEX_SESSION_ID "
-## 查看修复
+```bash
+BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
+git push origin "$BRANCH" --force
+```
+
+### 4.4 启动 Codex 验证
+
+```bash
+CODEX_SESSION=$($S/duo-get.sh $PR_NUMBER s1:codex:session)
+
+$S/codex-resume.sh $CODEX_SESSION "
+## 验证修复
 git diff origin/$PR_BRANCH..HEAD
 
-## 验证要点
+## 检查
 - 问题是否真正解决
 - 是否引入新问题
-- 代码质量是否符合规范
 
-## 输出
-用 gh pr comment $PR_NUMBER --repo $REPO 发布验证结果。
+## 完成后
+$S/duo-set.sh $PR_NUMBER s4:codex:status done
+$S/duo-set.sh $PR_NUMBER s4:verified <0|1>
 
-评论格式：
-<!-- duo-codex-verify-{ROUND} -->
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" /> Verify {ROUND} | GPT-5.1 Codex Max | ✅ PR → ✅ Cross → ✅ Fix → ⏳ Verify
-> 🕐 时间：(scripts/get-time.sh)
-
-### 验证结果
-- ✅ 验证通过 - 修复正确且无新问题
-- ❌ 验证失败 - (说明原因，Opus 将继续修复)
+## 发布评论
+评论验证结果
 "
 ```
 
-## 步骤 5: Orchestrator 判断
+### 4.5 等待 Codex 验证
 
-Orchestrator 读取 CODEX_RESULT，判断是否验证通过：
-- 通过 → 退出循环，进入阶段 5
-- 失败 → ROUND++，回到步骤 1
+```bash
+$S/duo-wait.sh $PR_NUMBER s4:codex:status done
+```
 
-## 输出
+### 4.6 判断结果
 
-- `VERIFIED`: true/false
-- `FIX_BRANCH`: bot🤖/pr-$PR_NUMBER
-- 下一阶段：5
+```bash
+VERIFIED=$($S/duo-get.sh $PR_NUMBER s4:verified)
+
+if [ "$VERIFIED" = "1" ]; then
+  # → 阶段 5
+  echo "验证通过"
+else
+  # 清除状态，下一轮
+  $S/duo-set.sh $PR_NUMBER s4:opus:status pending
+  $S/duo-set.sh $PR_NUMBER s4:codex:status pending
+  ROUND=$((ROUND + 1))
+  $S/duo-set.sh $PR_NUMBER s4:round $ROUND
+  # 继续循环
+fi
+```
+
+## 退出条件
+
+1. `s4:verified = 1` → 阶段 5
+2. `s4:round > 10` → 强制进入阶段 5

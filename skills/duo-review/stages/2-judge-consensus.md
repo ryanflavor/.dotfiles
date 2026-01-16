@@ -1,29 +1,54 @@
-# 阶段 2: 判断 R1 共识
+# 阶段 2: 判断共识
 
 **执行者**: Orchestrator
 
-根据阶段 1 的输出 `CODEX_RESULT` 和 `OPUS_RESULT`，Orchestrator 自行判断下一步。
+## 流程
 
-```mermaid
-flowchart TD
-    A[Orchestrator: 读取 RESULT] --> B{Orchestrator: 双方结论}
-    B -->|都无问题| C[共识: 无需修复]
-    B -->|相同问题| D[共识: 需要修复]
-    B -->|有分歧| E[未达成共识]
-    
-    C --> F[阶段 5]
-    D --> G[阶段 4]
-    E --> H[阶段 3]
+```
+获取结论 → 判断 → 设置 s2:result → 决定下一阶段
 ```
 
-## 决策逻辑
+## 获取结论
 
-| CODEX_RESULT | OPUS_RESULT | 判断 | 下一步   |
-| ------------ | ----------- | ---- | -------- |
-| 未发现问题   | 未发现问题  | 共识 | → 阶段 5 |
-| 问题 A       | 问题 A      | 共识 | → 阶段 4 |
-| 未发现问题   | 问题 A      | 分歧 | → 阶段 3 |
-| 问题 A       | 未发现问题  | 分歧 | → 阶段 3 |
-| 问题 A       | 问题 B      | 分歧 | → 阶段 3 |
+```bash
+CODEX=$($S/duo-get.sh $PR_NUMBER s1:codex:conclusion)
+OPUS=$($S/duo-get.sh $PR_NUMBER s1:opus:conclusion)
+```
 
-无需额外命令，Orchestrator 直接根据结果决策。
+## 判断逻辑
+
+```bash
+$S/duo-set.sh $PR_NUMBER stage 2
+
+if [ "$CODEX" = "ok" ] && [ "$OPUS" = "ok" ]; then
+  # 双方都没发现问题
+  $S/duo-set.sh $PR_NUMBER s2:result both_ok
+  # → 阶段 5
+  
+elif [ "$CODEX" = "$OPUS" ]; then
+  # 双方发现相同级别的问题
+  $S/duo-set.sh $PR_NUMBER s2:result same_issues
+  # → 阶段 4（直接修复）
+  
+else
+  # 有分歧
+  $S/duo-set.sh $PR_NUMBER s2:result divergent
+  # → 阶段 3（交叉确认）
+fi
+```
+
+## 决策树
+
+| Codex | Opus | 结果 | 下一阶段 |
+|-------|------|------|----------|
+| ok | ok | both_ok | 5 |
+| p0 | p0 | same_issues | 4 |
+| p1 | p1 | same_issues | 4 |
+| ok | p1 | divergent | 3 |
+| p0 | p1 | divergent | 3 |
+| ... | ... | divergent | 3 |
+
+## 输出
+
+- `s2:result = both_ok | same_issues | divergent`
+- 决定下一阶段

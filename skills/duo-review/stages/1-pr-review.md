@@ -2,104 +2,102 @@
 
 **执行者**: Orchestrator + Codex + Opus
 
-```mermaid
-flowchart LR
-    A[Orchestrator: 开始] --> B[Orchestrator: 发布占位评论]
-    B --> C1[Codex: 审查 后台]
-    B --> C2[Opus: 审查 后台]
-    C1 --> D[Orchestrator: 收集 RESULT]
-    C2 --> D
+## ⚠️ 重要规则
+
+1. **禁止读取脚本内容** - 直接执行，不要检查脚本里写了什么
+2. **必须使用 fireAndForget: true** - Codex 和 Opus 必须并行启动，不能串行
+
+## 流程
+
+```
+初始化 Redis → 创建占位评论 → 并行启动 Codex/Opus (fireAndForget) → duo-wait 等待完成
 ```
 
-## 步骤 1: Orchestrator 发布占位评论
+## 1.1 初始化
 
 ```bash
-# Codex 占位评论
-CODEX_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "...")
-
-# Opus 占位评论
-OPUS_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "...")
+$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH
 ```
 
-## 步骤 2: 并行启动审查
-
-**使用 Execute 工具的 `fireAndForget: true` 参数并行启动**：
-
-```json
-// 启动 Codex（后台）
-Execute({ command: "scripts/codex-exec.sh '...'", fireAndForget: true })
-// 返回: PID 和日志文件路径
-
-// 启动 Opus（后台）
-Execute({ command: "scripts/opus-exec.sh '...'", fireAndForget: true })
-// 返回: PID 和日志文件路径
-```
-
-## 步骤 3: 等待并检查评论
-
-等待 60-90 秒后，检查 PR 评论是否已更新（Codex/Opus 会直接编辑占位评论）：
+## 1.2 创建占位评论
 
 ```bash
-gh pr view $PR_NUMBER --repo $REPO --json comments -q '.comments[] | select(.body | contains("duo-codex-r1")) | .body'
+PROGRESS_ID=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-review-progress -->
+## 🔄 Duo Review 进度
+<img src=\"https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f\" width=\"14\" /> 审查中...
+")
+
+CODEX_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-r1 -->
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中...
+")
+
+OPUS_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-r1 -->
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中...
+")
+
+$S/duo-set.sh $PR_NUMBER progress_comment "$PROGRESS_ID"
+$S/duo-set.sh $PR_NUMBER s1:codex:comment "$CODEX_COMMENT"
+$S/duo-set.sh $PR_NUMBER s1:opus:comment "$OPUS_COMMENT"
 ```
 
-## Codex 审查 prompt
+## 1.3 启动 Codex
 
-```plain
-你是 Codex，负责审查 PR #$PR_NUMBER。
+**⚠️ 必须使用 Execute 工具的 `fireAndForget: true` 参数！不要读脚本内容！**
 
-## 准备工作
-1. 阅读 REVIEW.md 了解审查规范
-2. 运行 gh pr diff $PR_NUMBER --repo $REPO 查看变更
+脚本会自动写入 Redis（status, session, conclusion）。
 
-## 输出
-用以下方式编辑评论（从 stdin 读取内容）：
 ```bash
-echo "评论内容" | scripts/edit-comment.sh $CODEX_COMMENT_ID
-```
+$S/codex-exec.sh $PR_NUMBER "审查 PR #$PR_NUMBER ($REPO)。
 
-评论内容格式：
+1. 读 REVIEW.md 了解规范
+2. 用 gh pr diff $PR_NUMBER --repo $REPO 查看变更
+3. 审查后用 gh issue comment edit $CODEX_COMMENT --repo $REPO -b BODY 更新评论
+
+评论格式:
 <!-- duo-codex-r1 -->
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" /> Round 1 | GPT-5.1 Codex Max | ✅ PR
-> 🕐 审查时间：(scripts/get-time.sh) | Session: $SESSION_ID
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex | PR #$PR_NUMBER
+> 🕐 YYYY-MM-DD HH:MM (GMT+8)
 
 (审查内容)
 
-✅ 未发现问题 或 🔴[P0] 🟠[P1] 🟡[P2] 🟢[P3]
+结论: ✅未发现问题 或 🔴P0 🟠P1 🟡P2 🟢P3"
 ```
 
-## Opus 审查 prompt
+## 1.4 启动 Opus
 
-```plain
-你是 Opus，负责审查 PR #$PR_NUMBER。
+**⚠️ 必须使用 Execute 工具的 `fireAndForget: true` 参数！不要读脚本内容！**
 
-## 准备工作
-1. 阅读 REVIEW.md 了解审查规范
-2. 运行 gh pr diff $PR_NUMBER --repo $REPO 查看变更
+脚本会自动写入 Redis（status, session, conclusion）。
 
-## 输出
-用以下方式编辑评论（从 stdin 读取内容）：
 ```bash
-echo "评论内容" | scripts/edit-comment.sh $OPUS_COMMENT_ID
-```
+$S/opus-exec.sh $PR_NUMBER "审查 PR #$PR_NUMBER ($REPO)。
 
-评论内容格式：
+1. 读 REVIEW.md 了解规范
+2. 用 gh pr diff $PR_NUMBER --repo $REPO 查看变更
+3. 审查后用 gh issue comment edit $OPUS_COMMENT --repo $REPO -b BODY 更新评论
+
+评论格式:
 <!-- duo-opus-r1 -->
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" /> Round 1 | Opus 4.5 | ✅ PR
-> 🕐 审查时间：(scripts/get-time.sh) | Session: $SESSION_ID
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus | PR #$PR_NUMBER
+> 🕐 YYYY-MM-DD HH:MM (GMT+8)
 
 (审查内容)
 
-✅ 未发现问题 或 🔴[P0] 🟠[P1] 🟡[P2] 🟢[P3]
+结论: ✅未发现问题 或 🔴P0 🟠P1 🟡P2 🟢P3"
+```
+
+## 1.5 等待完成
+
+```bash
+$S/duo-wait.sh $PR_NUMBER s1:codex:status done s1:opus:status done
 ```
 
 ## 输出
 
-| 变量 | 说明 |
-|------|------|
-| `CODEX_SESSION_ID` | Codex 会话 ID |
-| `OPUS_SESSION_ID` | Opus 会话 ID |
-| `CODEX_COMMENT_ID` | Codex 评论 ID |
-| `OPUS_COMMENT_ID` | Opus 评论 ID |
-| `CODEX_RESULT` | Codex 审查结果 |
-| `OPUS_RESULT` | Opus 审查结果 |
+完成后 Redis 中有：
+- `s1:codex:status = done`
+- `s1:codex:session = <UUID>`
+- `s1:codex:conclusion = ok|p0|p1|p2|p3`
+- `s1:opus:*` 同上
+
+→ 进入阶段 2

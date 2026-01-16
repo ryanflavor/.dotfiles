@@ -5,122 +5,121 @@ description: 双 AI Agent (GPT-5.1 Codex Max + Claude Opus 4.5) 交叉审查 PR�
 
 # Duo Review - 双 Agent 交叉审查
 
-## 角色
+## ⚠️ Orchestrator 行为规范
 
-| 角色             | 模型                | 职责                           |
-| ---------------- | ------------------- | ------------------------------ |
-| **Orchestrator** | 执行 skill 的 droid | 编排流程、判断共识、决定下一步 |
-| **Codex**        | GPT-5.1 Codex Max   | PR 审查、交叉确认、验证修复    |
-| **Opus**         | Claude Opus 4.5     | PR 审查、交叉确认、执行修复    |
+**禁止：** 读取 PR diff、REVIEW.md、代码文件、检查脚本内容
+**必须：** 直接执行命令，使用 Redis 协调状态
 
-**⚠️ 重要：Orchestrator 不要读 PR diff、REVIEW.md 或任何代码文件！这是 Codex/Opus 的工作。Orchestrator 只负责：**
-1. **执行脚本**（清理评论、创建评论、启动 Codex/Opus）
-2. **等待和判断**（读取评论结果、判断共识）
-3. **立即启动**（准备工作完成后立即并行启动 Codex/Opus，不要先读 diff）
+## 脚本路径
 
-## 输入
-
-- `PR_NUMBER`: PR 编号
-- `PR_BRANCH`: PR 分支名
-- `BASE_BRANCH`: 目标分支
-- `REPO`: 仓库名（格式 owner/repo）
+```bash
+S=~/.factory/skills/duo-review/scripts
+```
 
 ## 可用脚本
 
-| 脚本 | 用途 | 用法 |
-|------|------|------|
-| `scripts/cleanup-comments.sh` | 清理所有 duo 评论 | `cleanup-comments.sh <PR_NUMBER> <REPO>` |
-| `scripts/post-comment.sh` | 发布评论，返回 ID | `post-comment.sh <PR_NUMBER> <REPO> "<BODY>"` |
-| `scripts/edit-comment.sh` | 编辑评论（stdin） | `echo "<BODY>" \| edit-comment.sh <COMMENT_ID>` |
-| `scripts/codex-exec.sh` | 启动 Codex | `codex-exec.sh "<PROMPT>"` |
-| `scripts/opus-exec.sh` | 启动 Opus | `opus-exec.sh "<PROMPT>"` |
-| `scripts/codex-resume.sh` | 恢复 Codex 会话 | `codex-resume.sh <SESSION_ID> "<PROMPT>"` |
-| `scripts/opus-resume.sh` | 恢复 Opus 会话 | `opus-resume.sh <SESSION_ID> "<PROMPT>"` |
-| `scripts/get-time.sh` | 获取新加坡时间 | `get-time.sh` |
+| 脚本 | 用途 |
+|------|------|
+| `duo-init.sh` | 初始化 Redis: `duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH` |
+| `duo-set.sh` | 设置状态: `duo-set.sh $PR_NUMBER <field> <value>` |
+| `duo-get.sh` | 获取状态: `duo-get.sh $PR_NUMBER <field>` |
+| `duo-wait.sh` | 等待条件: `duo-wait.sh $PR_NUMBER <field1> <value1> [field2 value2 ...]` |
+| `duo-status.sh` | 完整状态: `duo-status.sh $PR_NUMBER` |
+| `codex-exec.sh` | 启动 Codex: `codex-exec.sh "<prompt>"` |
+| `opus-exec.sh` | 启动 Opus: `opus-exec.sh "<prompt>"` |
+| `codex-resume.sh` | 恢复 Codex: `codex-resume.sh <session_id> "<prompt>"` |
+| `opus-resume.sh` | 恢复 Opus: `opus-resume.sh <session_id> "<prompt>"` |
+| `post-comment.sh` | 发评论: `post-comment.sh $PR_NUMBER $REPO "<body>"` |
+| `edit-comment.sh` | 编辑评论: `echo "<body>" \| edit-comment.sh <comment_id>` |
+| `cleanup-comments.sh` | 清理评论: `cleanup-comments.sh $PR_NUMBER $REPO` |
 
-## 准备工作
+## Redis 状态结构
 
-### 1. 清理所有旧评论
-
-**必须调用脚本，不要自己写删除逻辑**：
-
-```bash
-scripts/cleanup-comments.sh $PR_NUMBER $REPO
 ```
+Key: duo:{PR_NUMBER}
 
-### 2. 创建进度评论
+# 元信息
+repo, pr, branch, base, stage, started_at
 
-```bash
-PROGRESS_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "<!-- duo-review-progress -->
-正在审查 PR #$PR_NUMBER... <img src=\"https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f\" width=\"14\" />
-")
+# 阶段 1: PR 审查
+s1:codex:status   pending | running | done
+s1:codex:session  会话 ID
+s1:codex:conclusion  ok | p0 | p1 | p2 | p3
+s1:codex:comment  评论 ID
+
+s1:opus:status/session/conclusion/comment  同上
+
+# 阶段 2: 共识结果
+s2:result  both_ok | same_issues | divergent
+
+# 阶段 3: 交叉确认
+s3:round  当前轮数
+s3:consensus  0 | 1
+
+# 阶段 4: 修复验证
+s4:round  当前轮数
+s4:branch  修复分支名
+s4:verified  0 | 1
 ```
-
-### 3. 创建 Codex/Opus 占位评论
-
-```bash
-CODEX_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-r1 -->
-<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中...
-")
-
-OPUS_COMMENT_ID=$(scripts/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-r1 -->
-<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中...
-")
-```
-
-**流程结束后编辑进度评论为汇总内容**。
-
-### 图标
-
-- Codex: `<img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" />`
-- Opus: `<img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" />`
-- Loading (Orchestrator 进度): `<img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14" />`
 
 ## 五阶段流程
 
-```mermaid
-flowchart TD
-    S[Orchestrator: 开始] --> C[Orchestrator: 清理旧评论]
-    C --> A1[阶段 1: Codex + Opus 并行审查]
-    A1 --> A2[阶段 2: Orchestrator 判断共识]
-    
-    A2 -->|双方都无问题| A5[阶段 5: Orchestrator 汇总]
-    A2 -->|双方指出相同问题| A4[阶段 4: Opus 修复 + Codex 验证]
-    A2 -->|有分歧| A3[阶段 3: Opus + Codex 交叉确认]
-    
-    A3 -->|Orchestrator: 达成共识，无需修复| A5
-    A3 -->|Orchestrator: 达成共识，需修复| A4
-    A3 -->|Orchestrator: 达到 10 轮| A5
-    
-    A4 -->|Orchestrator: 验证通过| A5
-    A4 -->|Orchestrator: 达到 10 轮| A5
-    
-    A5 --> E[完成]
+```
+阶段 1 ──▶ 阶段 2 ──▶ both_ok ──────────────▶ 阶段 5
+                  └─▶ same_issues ──▶ 阶段 4 ──▶ 阶段 5
+                  └─▶ divergent ──▶ 阶段 3 ──▶ 阶段 4/5
 ```
 
-## 阶段详情
+---
 
-| 阶段 | 文件                          | 执行者                      | 说明                                     |
-| ---- | ----------------------------- | --------------------------- | ---------------------------------------- |
-| 1    | `stages/1-pr-review.md`       | Codex + Opus                | 并行审查，输出 SESSION_ID, RESULT        |
-| 2    | `stages/2-judge-consensus.md` | Orchestrator                | 根据 RESULT 判断共识                     |
-| 3    | `stages/3-cross-confirm.md`   | Opus + Codex + Orchestrator | 交叉确认，Orchestrator 判断共识          |
-| 4    | `stages/4-fix-verify.md`      | Opus + Codex + Orchestrator | Opus 修复，Codex 验证，Orchestrator 判断 |
-| 5    | `stages/5-summary.md`         | Orchestrator                | 编辑进度评论为汇总                       |
+## 阶段执行
 
-## 标记
+**每个阶段执行前，必须先读取对应的 stages/ 文件获取详细指令！**
 
-- `<!-- duo-review-progress -->`: 进度/汇总评论
-- `<!-- duo-codex-r{N} -->` / `<!-- duo-opus-r{N} -->`: Codex/Opus 评论
+| 阶段 | 文件 | 说明 |
+|------|------|------|
+| 1 | `stages/1-pr-review.md` | 并行 PR 审查 |
+| 2 | `stages/2-judge-consensus.md` | 判断共识 |
+| 3 | `stages/3-cross-confirm.md` | 交叉确认 |
+| 4 | `stages/4-fix-verify.md` | 修复验证 |
+| 5 | `stages/5-summary.md` | 汇总 |
 
-## 成功标准
+---
 
-- [x] R1 评论发布
-- [x] 达成共识或达到最大轮数
-- [x] 如需修复，验证通过或达到最大轮数
-- [x] 进度评论编辑为汇总
+## 阶段 1: 并行 PR 审查
 
-## 参考
+**⚠️ 先读取 `stages/1-pr-review.md` 获取完整指令和评论格式！**
 
-- 审查规范: `REVIEW.md`
-- 原子脚本: `scripts/`
+---
+
+## 阶段 2: 判断共识
+
+**⚠️ 先读取 `stages/2-judge-consensus.md` 获取详细指令！**
+
+---
+
+## 阶段 3: 交叉确认
+
+**⚠️ 先读取 `stages/3-cross-confirm.md` 获取详细指令！**
+
+---
+
+## 阶段 4: 修复验证
+
+**⚠️ 先读取 `stages/4-fix-verify.md` 获取详细指令！**
+
+---
+
+## 阶段 5: 汇总
+
+**⚠️ 先读取 `stages/5-summary.md` 获取详细指令！**
+
+---
+
+## 角色
+
+| 角色 | 模型 | 职责 |
+|------|------|------|
+| Orchestrator | 当前 droid | 执行脚本、协调 Redis、判断流转 |
+| Codex | GPT-5.1 Codex Max | PR 审查、交叉确认、验证修复 |
+| Opus | Claude Opus 4.5 | PR 审查、交叉确认、执行修复 |

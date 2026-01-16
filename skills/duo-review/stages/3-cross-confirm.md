@@ -2,100 +2,95 @@
 
 **执行者**: Orchestrator + Opus + Codex
 
-```mermaid
-flowchart TD
-    A[Orchestrator: ROUND=2] --> B{Orchestrator: ROUND <= 10?}
-    B -->|是| C[Orchestrator: 组装 prompt 给 Opus]
-    C --> D[Opus: 回应 Codex]
-    D --> E[Orchestrator: 组装 prompt 给 Codex]
-    E --> F[Codex: 回应 Opus]
-    F --> G{Orchestrator: 判断共识}
-    G -->|达成共识| H[退出循环]
-    G -->|未达成| I[Orchestrator: ROUND++]
-    I --> B
-    B -->|否| J[达到最大轮数]
-    H --> K{Orchestrator: 需要修复?}
-    K -->|是| L[阶段 4]
-    K -->|否| M[阶段 5]
-    J --> M
+## 流程
+
+```
+ROUND=2 → Opus 回应 Codex → Codex 回应 Opus → 判断共识
+    ↑                                              ↓
+    └──────────── 未达成共识, ROUND++ ─────────────┘
 ```
 
-## 步骤 0: Orchestrator 初始化
+## 初始化
 
 ```bash
-ROUND=2
+$S/duo-set.sh $PR_NUMBER stage 3
+$S/duo-set.sh $PR_NUMBER s3:round 2
 ```
 
-## 步骤 1: Orchestrator 组装 prompt 给 Opus
+## 循环（ROUND <= 10）
 
-Orchestrator 已知 CODEX_RESULT，组装 prompt：
+### 3.1 启动 Opus 回应
 
-```plain
-scripts/opus-resume.sh $OPUS_SESSION_ID "
-## Codex 的审查结论
-$CODEX_RESULT
+```bash
+CODEX_SESSION=$($S/duo-get.sh $PR_NUMBER s1:codex:session)
+OPUS_SESSION=$($S/duo-get.sh $PR_NUMBER s1:opus:session)
+ROUND=$($S/duo-get.sh $PR_NUMBER s3:round)
 
-## 回应规则
-- 如果 Codex 说「未发现问题」且你也同意，回复：✅ 同意，无需修复
-- 如果 Codex 指出问题，逐个评估：
-  - ✅ 认可 - 问题确实存在
-  - ❌ 不认可 - 说明为什么是误报
-- 如果是后续轮次，回应 Codex 对你的质疑
+$S/opus-resume.sh $OPUS_SESSION "
+## 回应 Codex 的审查
+读取 PR #$PR_NUMBER 的 Codex 评论，逐个问题回应：
+- ✅ 认可: 问题确实存在
+- ❌ 不认可: 说明原因
 
-## 输出
-用 gh pr comment $PR_NUMBER --repo $REPO 发布回应。
+## 完成后
+$S/duo-set.sh $PR_NUMBER s3:opus:status done
+$S/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
 
-评论格式：
-<!-- duo-opus-r{ROUND} -->
-> (引用 Codex 原文：复制粘贴你要回应的具体内容，不要总结)
-
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" /> Round {ROUND} | Opus 4.5 | ✅ PR → ⏳ Cross
-> 🕐 时间：(scripts/get-time.sh)
-
-(你的回应内容，用表格列出判断)
+## 发布评论
+echo '内容' | $S/edit-comment.sh \$COMMENT_ID
 "
 ```
 
-## 步骤 2: Orchestrator 组装 prompt 给 Codex
+### 3.2 等待 Opus
 
-Orchestrator 已知 OPUS_RESULT，组装 prompt：
+```bash
+$S/duo-wait.sh $PR_NUMBER s3:opus:status done
+```
 
-```plain
-scripts/codex-resume.sh $CODEX_SESSION_ID "
-## Opus 的审查结论
-$OPUS_RESULT
+### 3.3 启动 Codex 回应
 
-## 回应规则
-- 如果 Opus 说「未发现问题」且你也同意，回复：✅ 同意，无需修复
-- 如果 Opus 指出问题，逐个评估：
-  - ✅ 认可 - 问题确实存在
-  - ❌ 不认可 - 说明为什么是误报
-- 如果是后续轮次，回应 Opus 对你的质疑
+```bash
+$S/codex-resume.sh $CODEX_SESSION "
+## 回应 Opus 的审查
+读取 PR #$PR_NUMBER 的 Opus 评论，逐个问题回应：
+- ✅ 认可: 问题确实存在
+- ❌ 不认可: 说明原因
 
-## 输出
-用 gh pr comment $PR_NUMBER --repo $REPO 发布回应。
+## 完成后
+$S/duo-set.sh $PR_NUMBER s3:codex:status done
+$S/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
 
-评论格式：
-<!-- duo-codex-r{ROUND} -->
-> (引用 Opus 原文：复制粘贴你要回应的具体内容)
-
-## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" /> Round {ROUND} | GPT-5.1 Codex Max | ✅ PR → ⏳ Cross
-> 🕐 时间：(scripts/get-time.sh)
-
-(你的回应内容，用表格列出判断)
+## 发布评论
+echo '内容' | $S/edit-comment.sh \$COMMENT_ID
 "
 ```
 
-## 步骤 3: Orchestrator 判断共识
+### 3.4 等待 Codex
 
-Orchestrator 读取 OPUS_RESULT 和 CODEX_RESULT，自行判断：
+```bash
+$S/duo-wait.sh $PR_NUMBER s3:codex:status done
+```
 
-1. 双方都同意"无需修复" → 共识，无需修复，进入阶段 5
-2. 双方都认可某个具体问题 → 共识，需修复，进入阶段 4
-3. 仍有 ❌ 分歧 → ROUND++，回到步骤 1
+### 3.5 判断共识
 
-## 输出
+```bash
+OPUS_AGREES=$($S/duo-get.sh $PR_NUMBER s3:opus:agrees)
+CODEX_AGREES=$($S/duo-get.sh $PR_NUMBER s3:codex:agrees)
 
-- `CONSENSUS`: true/false
-- `NEED_FIX`: true/false
-- 下一阶段：4（需修复）/ 5（无需修复或达最大轮数）
+if [ "$OPUS_AGREES" = "1" ] && [ "$CODEX_AGREES" = "1" ]; then
+  $S/duo-set.sh $PR_NUMBER s3:consensus 1
+  # → 阶段 4（有问题需修复）或阶段 5（无问题）
+else
+  # 清除状态，下一轮
+  $S/duo-set.sh $PR_NUMBER s3:opus:status pending
+  $S/duo-set.sh $PR_NUMBER s3:codex:status pending
+  ROUND=$((ROUND + 1))
+  $S/duo-set.sh $PR_NUMBER s3:round $ROUND
+  # 继续循环
+fi
+```
+
+## 退出条件
+
+1. `s3:consensus = 1` → 根据结论进入阶段 4 或 5
+2. `s3:round > 10` → 强制进入阶段 5
