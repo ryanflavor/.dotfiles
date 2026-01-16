@@ -44,7 +44,9 @@ jobs:
 
       - name: Pull latest skills
         run: |
-          cd ~/.dotfiles && git pull --ff-only
+          if [[ -d ~/.dotfiles ]]; then
+            cd ~/.dotfiles && git fetch --all && git reset --hard origin/main || true
+          fi
 
       - name: Set droid path
         run: |
