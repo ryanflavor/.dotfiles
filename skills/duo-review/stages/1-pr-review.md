@@ -51,111 +51,13 @@ $S/duo-set.sh $PR_NUMBER s1:opus:review_node_id "$OPUS_COMMENT"
 ### 启动 Opus
 
 ```bash
-$S/opus-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
-
-## Steps
-1. Read REVIEW.md for project conventions
-2. Get diff: git diff origin/main...HEAD
-3. Save review to Redis: \$S/duo-set.sh $PR_NUMBER s1:opus:review \"\$REVIEW_CONTENT\"
-4. Post review: \$S/edit-comment.sh $OPUS_COMMENT <<< \"\$REVIEW_CONTENT\"
-
-### How Many Findings to Return
-Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
-
-### Key Guidelines for Bug Detection
-Only flag an issue as a bug if:
-1. It meaningfully impacts the accuracy, performance, security, or maintainability of the code.
-2. The bug is discrete and actionable (not a general issue).
-3. Fixing the bug does not demand a level of rigor not present in the rest of the codebase.
-4. The bug was introduced in the commit (pre-existing bugs should not be flagged).
-5. The author would likely fix the issue if made aware of it.
-6. The bug does not rely on unstated assumptions.
-7. Must identify provably affected code parts (not speculation).
-8. The bug is clearly not intentional.
-
-### Comment Guidelines
-Your review comments should be:
-1. Clear about why the issue is a bug
-2. Appropriately communicate severity
-3. Brief - at most 1 paragraph
-4. Code chunks max 3 lines, wrapped in markdown
-5. Clearly communicate scenarios/environments for bug
-6. Matter-of-fact tone without being accusatory
-7. Immediately graspable by original author
-8. Avoid excessive flattery
-- Ignore trivial style unless it obscures meaning or violates documented standards.
-
-### Priority Levels
-- 🔴 [P0] - Drop everything to fix. Blocking release/operations
-- 🟠 [P1] - Urgent. Should be addressed in next cycle
-- 🟡 [P2] - Normal. To be fixed eventually
-- 🟢 [P3] - Low. Nice to have
-
-## IMPORTANT: Output Format (MUST follow exactly)
-<!-- duo-opus-r1 -->
-## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus | PR #$PR_NUMBER
-> 🕐 \$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') (GMT+8)
-
-### Findings
-(No issues found OR list by priority)
-
-### Conclusion
-✅ No issues OR highest priority found"
+$S/opus-exec.sh PR_NUMBER=$PR_NUMBER REPO=$REPO OPUS_COMMENT_ID=$OPUS_COMMENT BASE_BRANCH=$BASE_BRANCH
 ```
 
 ### 启动 Codex
 
 ```bash
-$S/codex-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
-
-## Steps
-1. Read REVIEW.md for project conventions
-2. Get diff: git diff origin/main...HEAD
-3. Save review to Redis: \$S/duo-set.sh $PR_NUMBER s1:codex:review \"\$REVIEW_CONTENT\"
-4. Post review: \$S/edit-comment.sh $CODEX_COMMENT <<< \"\$REVIEW_CONTENT\"
-
-### How Many Findings to Return
-Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
-
-### Key Guidelines for Bug Detection
-Only flag an issue as a bug if:
-1. It meaningfully impacts the accuracy, performance, security, or maintainability of the code.
-2. The bug is discrete and actionable (not a general issue).
-3. Fixing the bug does not demand a level of rigor not present in the rest of the codebase.
-4. The bug was introduced in the commit (pre-existing bugs should not be flagged).
-5. The author would likely fix the issue if made aware of it.
-6. The bug does not rely on unstated assumptions.
-7. Must identify provably affected code parts (not speculation).
-8. The bug is clearly not intentional.
-
-### Comment Guidelines
-Your review comments should be:
-1. Clear about why the issue is a bug
-2. Appropriately communicate severity
-3. Brief - at most 1 paragraph
-4. Code chunks max 3 lines, wrapped in markdown
-5. Clearly communicate scenarios/environments for bug
-6. Matter-of-fact tone without being accusatory
-7. Immediately graspable by original author
-8. Avoid excessive flattery
-- Ignore trivial style unless it obscures meaning or violates documented standards.
-
-### Priority Levels
-- 🔴 [P0] - Drop everything to fix. Blocking release/operations
-- 🟠 [P1] - Urgent. Should be addressed in next cycle
-- 🟡 [P2] - Normal. To be fixed eventually
-- 🟢 [P3] - Low. Nice to have
-
-## IMPORTANT: Output Format (MUST follow exactly)
-<!-- duo-codex-r1 -->
-## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex | PR #$PR_NUMBER
-> 🕐 \$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') (GMT+8)
-
-### Findings
-(No issues found OR list by priority)
-
-### Conclusion
-✅ No issues OR highest priority found"
+$S/codex-exec.sh PR_NUMBER=$PR_NUMBER REPO=$REPO CODEX_COMMENT_ID=$CODEX_COMMENT BASE_BRANCH=$BASE_BRANCH
 ```
 
 ## 1.5 等待完成
