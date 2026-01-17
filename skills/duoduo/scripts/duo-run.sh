@@ -34,11 +34,12 @@ echo "   Repo: $REPO"
 echo "   Runner: $RUNNER"
 echo ""
 
-# 清理旧进程和评论
+# 清理旧进程、评论和修复分支
 pkill -f "session-start.py.*$PR_NUMBER" 2>/dev/null || true
 rm -f /tmp/duo-$PR_NUMBER-* 2>/dev/null || true
 redis-cli DEL duo:$PR_NUMBER >/dev/null 2>&1 || true
 $S/cleanup-comments.sh $PR_NUMBER $REPO >/dev/null 2>&1 || true
+git push origin --delete "bot/pr-$PR_NUMBER" 2>/dev/null || true
 
 # 启动 Orchestrator
 $S/orchestrator-start.py $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH $RUNNER

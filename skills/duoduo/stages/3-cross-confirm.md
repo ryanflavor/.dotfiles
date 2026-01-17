@@ -13,12 +13,12 @@ flowchart TD
     Mode -->|场景3: 双方都有不同发现| S3[双向汇总确认]
     
     S1 --> S1R{Codex 回复}
-    S1R -->|全部 ✅| Fix([阶段 4: 修复])
-    S1R -->|有 ❌| Dialog1[转入对话]
+    S1R -->|全部 🔧| Fix([阶段 4: 修复])
+    S1R -->|有 ⏭️| Dialog1[转入对话]
     
     S2 --> S2R{Opus 回复}
-    S2R -->|全部 ✅| Fix
-    S2R -->|有 ❌| Dialog2[转入对话]
+    S2R -->|全部 🔧| Fix
+    S2R -->|有 ⏭️| Dialog2[转入对话]
     
     S3 --> Collect[收集双方回复]
     Collect --> Judge{判断共识}
@@ -31,7 +31,7 @@ flowchart TD
     Dialog2 --> S3
     
     Consensus -->|有需修复项| Fix
-    Consensus -->|全部不需修复| Summary([阶段 5: 汇总])
+    Consensus -->|全部跳过| Summary([阶段 5: 汇总])
     Timeout --> Summary
 ```
 
@@ -71,8 +71,8 @@ $OPUS_FINDINGS
 </opus-findings>
 
 请逐条评估：
-- ✅ 认可 - 确实是问题，需要修复
-- ❌ 不认可 - 误报，附上理由
+- 🔧 Fix - 确认是问题，需要修复
+- ⏭️ Skip - 跳过（误报/不值得修复）
 
 ## 输出格式（必须严格遵循）
 
@@ -83,14 +83,12 @@ $OPUS_FINDINGS
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 交叉确认 | Round 1
 > 🕐 \$TIMESTAMP
 
-### 评估结果
-| 问题 | 判断 | 理由 |
-| ---- | ---- | ---- |
-| O1   | ✅/❌ | ...  |
-| O2   | ✅/❌ | ...  |
+| 问题 | 结论 | 说明 |
+|------|------|------|
+| O1   | 🔧/⏭️ | ...  |
+| O2   | 🔧/⏭️ | ...  |
 
-### 结论
-(总结你的判断)
+**总结**: (一句话总结)
 
 ## 完成后
 1. \$S/post-comment.sh \$PR_NUMBER \$REPO \"\$COMMENT_CONTENT\"
@@ -101,8 +99,8 @@ $OPUS_FINDINGS
 ### Orchestrator 处理回复
 
 收到 Codex 回复后：
-- 全部 ✅ → 共识达成，进入阶段 4
-- 有 ❌ → 把 Codex 的理由转发给 Opus，转入场景 3（双向确认）
+- 全部 🔧 → 共识达成，进入阶段 4
+- 有 ⏭️ → 把 Codex 的理由转发给 Opus，转入场景 3（双向确认）
 
 ---
 
@@ -123,8 +121,8 @@ $CODEX_FINDINGS
 </codex-findings>
 
 请逐条评估：
-- ✅ 认可 - 确实是问题，需要修复
-- ❌ 不认可 - 误报，附上理由
+- 🔧 Fix - 确认是问题，需要修复
+- ⏭️ Skip - 跳过（误报/不值得修复）
 
 ## 输出格式（必须严格遵循）
 
@@ -135,14 +133,12 @@ $CODEX_FINDINGS
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 交叉确认 | Round 1
 > 🕐 \$TIMESTAMP
 
-### 评估结果
-| 问题 | 判断 | 理由 |
-| ---- | ---- | ---- |
-| C1   | ✅/❌ | ...  |
-| C2   | ✅/❌ | ...  |
+| 问题 | 结论 | 说明 |
+|------|------|------|
+| C1   | 🔧/⏭️ | ...  |
+| C2   | 🔧/⏭️ | ...  |
 
-### 结论
-(总结你的判断)
+**总结**: (一句话总结)
 
 ## 完成后
 1. \$S/post-comment.sh \$PR_NUMBER \$REPO \"\$COMMENT_CONTENT\"
@@ -153,8 +149,8 @@ $CODEX_FINDINGS
 ### Orchestrator 处理回复
 
 收到 Opus 回复后：
-- 全部 ✅ → 共识达成，进入阶段 4
-- 有 ❌ → 转入场景 3（双向确认）
+- 全部 🔧 → 共识达成，进入阶段 4
+- 有 ⏭️ → 转入场景 3（双向确认）
 
 ---
 
@@ -179,8 +175,8 @@ C1. [P1] $CODEX_FINDING_1
 C2. [P3] $CODEX_FINDING_2
 
 请逐条评估所有问题（包括你自己的和 Codex 的）：
-- ✅ 认可（确实是问题，需修复）
-- ❌ 不认可（误报，附理由）
+- 🔧 Fix - 确认是问题，需要修复
+- ⏭️ Skip - 跳过（误报/不值得修复）
 
 ## 输出格式（必须严格遵循）
 
@@ -191,16 +187,14 @@ C2. [P3] $CODEX_FINDING_2
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 交叉确认 | Round $ROUND
 > 🕐 \$TIMESTAMP
 
-### 评估结果
-| 问题 | 判断 | 理由 |
-| ---- | ---- | ---- |
-| O1   | ✅/❌ | ...  |
-| O2   | ✅/❌ | ...  |
-| C1   | ✅/❌ | ...  |
-| C2   | ✅/❌ | ...  |
+| 问题 | 结论 | 说明 |
+|------|------|------|
+| O1   | 🔧/⏭️ | ...  |
+| O2   | 🔧/⏭️ | ...  |
+| C1   | 🔧/⏭️ | ...  |
+| C2   | 🔧/⏭️ | ...  |
 
-### 结论
-(总结)
+**总结**: (一句话总结)
 
 ## 完成后
 1. \$S/post-comment.sh \$PR_NUMBER \$REPO \"\$COMMENT_CONTENT\"
@@ -225,8 +219,8 @@ C1. [P1] $CODEX_FINDING_1
 C2. [P3] $CODEX_FINDING_2
 
 请逐条评估所有问题（包括你自己的和 Opus 的）：
-- ✅ 认可（确实是问题，需修复）
-- ❌ 不认可（误报，附理由）
+- 🔧 Fix - 确认是问题，需要修复
+- ⏭️ Skip - 跳过（误报/不值得修复）
 
 ## 输出格式（必须严格遵循）
 
@@ -237,16 +231,14 @@ C2. [P3] $CODEX_FINDING_2
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 交叉确认 | Round $ROUND
 > 🕐 \$TIMESTAMP
 
-### 评估结果
-| 问题 | 判断 | 理由 |
-| ---- | ---- | ---- |
-| O1   | ✅/❌ | ...  |
-| O2   | ✅/❌ | ...  |
-| C1   | ✅/❌ | ...  |
-| C2   | ✅/❌ | ...  |
+| 问题 | 结论 | 说明 |
+|------|------|------|
+| O1   | 🔧/⏭️ | ...  |
+| O2   | 🔧/⏭️ | ...  |
+| C1   | 🔧/⏭️ | ...  |
+| C2   | 🔧/⏭️ | ...  |
 
-### 结论
-(总结)
+**总结**: (一句话总结)
 
 ## 完成后
 1. \$S/post-comment.sh \$PR_NUMBER \$REPO \"\$COMMENT_CONTENT\"
@@ -260,15 +252,24 @@ C2. [P3] $CODEX_FINDING_2
 
 ```plain
 收到：
-Opus:   O1:✅  O2:✅  C1:❌(理由A)  C2:✅
-Codex:  O1:✅  O2:❌(理由B)  C1:✅  C2:✅
+Opus:   O1:🔧  O2:🔧  C1:⏭️(理由A)  C2:🔧
+Codex:  O1:🔧  O2:⏭️(理由B)  C1:🔧  C2:🔧
 
 判断：
-O1: 双方 ✅ → 达成共识，需修复
-O2: Opus✅ Codex❌ → 分歧
-C1: Opus❌ Codex✅ → 分歧
-C2: 双方 ✅ → 达成共识，需修复
+O1: 双方 🔧 → 达成共识，需修复
+O2: Opus🔧 Codex⏭️ → 分歧
+C1: Opus⏭️ Codex🔧 → 分歧
+C2: 双方 🔧 → 达成共识，需修复
 ```
+
+### 共识判断逻辑
+
+| Opus | Codex | 结果 |
+|------|-------|------|
+| 🔧 | 🔧 | ✅ 共识：修复 |
+| ⏭️ | ⏭️ | ✅ 共识：跳过 |
+| 🔧 | ⏭️ | ❌ 分歧 → 下一轮 |
+| ⏭️ | 🔧 | ❌ 分歧 → 下一轮 |
 
 ### Round 2+: 针对分歧项继续确认
 
@@ -276,9 +277,9 @@ C2: 双方 ✅ → 达成共识，需修复
 
 ### 循环终止条件
 
-1. **全部达成共识** - 所有问题双方都 ✅ 或都 ❌
-   - 有需修复项 → 阶段 4
-   - 全部不需修复 → 阶段 5
+1. **全部达成共识** - 所有问题双方结论一致
+   - 有 🔧 项 → 阶段 4
+   - 全部 ⏭️ → 阶段 5
 
 2. **达到轮数上限（5 轮）** - 仍有分歧 → 阶段 5（标记需人工审查）
 

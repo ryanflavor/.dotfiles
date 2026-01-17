@@ -60,7 +60,7 @@ OPUS_FIX_COMMENT=$($S/duo-get.sh $PR_NUMBER s4:opus:comment_id)
 
 $S/fifo-send.sh opus $PR_NUMBER "
 ## 任务
-读取 PR 评论中双方都认可（✅）的问题，进行修复。
+读取 PR 评论中双方都标记为 🔧 Fix 的问题，进行修复。
 
 ## 要求
 - 只修复达成共识的问题
