@@ -31,7 +31,7 @@ jobs:
     steps:
       - id: check
         run: |
-          if [[ "${{ inputs.pr_branch }}" == bot/* ]]; then
+          if [[ "${{ inputs.pr_branch }}" == duo/* ]]; then
             echo "should_run=false" >> $GITHUB_OUTPUT
           else
             echo "should_run=true" >> $GITHUB_OUTPUT
