@@ -84,7 +84,7 @@ concurrency:
   group: duo-mention-${{ github.event.issue.number }}
 
 jobs:
-  get-runner:
+  get-info:
     if: |
       github.event.issue.pull_request &&
       (contains(github.event.comment.body, '@your-bot-name') ||
@@ -93,12 +93,19 @@ jobs:
     runs-on: [self-hosted, macos, arm64]
     outputs:
       runner: ${{ steps.get.outputs.runner }}
+      pr_branch: ${{ steps.get.outputs.pr_branch }}
+      base_branch: ${{ steps.get.outputs.base_branch }}
     steps:
-      - name: Get runner from Redis or summary
+      - name: Get runner and PR info
         id: get
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 获取 PR 信息
+          PR_INFO=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json baseRefName,headRefName)
+          echo "pr_branch=$(echo $PR_INFO | jq -r .headRefName)" >> $GITHUB_OUTPUT
+          echo "base_branch=$(echo $PR_INFO | jq -r .baseRefName)" >> $GITHUB_OUTPUT
+          
           # 先尝试 Redis
           RUNNER=$(redis-cli HGET "duo:${{ github.event.issue.number }}" runner 2>/dev/null || echo "")
           
@@ -112,15 +119,17 @@ jobs:
           echo "runner=$RUNNER" >> $GITHUB_OUTPUT
 
   duoduo:
-    needs: get-runner
-    if: needs.get-runner.outputs.runner != ''
+    needs: get-info
+    if: needs.get-info.outputs.runner != ''
     uses: notdp/.dotfiles/.github/workflows/duo-mention.yml@main
     with:
       pr_number: ${{ github.event.issue.number }}
       repo: ${{ github.repository }}
+      pr_branch: ${{ needs.get-info.outputs.pr_branch }}
+      base_branch: ${{ needs.get-info.outputs.base_branch }}
       comment_body: ${{ github.event.comment.body }}
       comment_author: ${{ github.event.comment.user.login }}
-      runner: ${{ needs.get-runner.outputs.runner }}
+      runner: ${{ needs.get-info.outputs.runner }}
     secrets:
       DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
       DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}

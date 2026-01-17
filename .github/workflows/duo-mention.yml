@@ -9,6 +9,12 @@ on:
       repo:
         required: true
         type: string
+      pr_branch:
+        required: true
+        type: string
+      base_branch:
+        required: true
+        type: string
       comment_body:
         required: true
         type: string
@@ -47,6 +53,10 @@ jobs:
       - name: Duo Mention
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REPO: ${{ inputs.repo }}
+          PR_BRANCH: ${{ inputs.pr_branch }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
         run: |
           ~/.dotfiles/skills/duoduo/scripts/duo-mention.py \
             ${{ inputs.pr_number }} \

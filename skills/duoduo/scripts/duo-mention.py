@@ -71,8 +71,8 @@ def fifo_send(name: str, message: str):
 
 
 def resume_session(name: str):
-    """恢复 session"""
-    subprocess.run([sys.executable, f"{SCRIPTS}/session-resume.py", name, PR_NUMBER])
+    """恢复 session，传递环境变量（workflow 已设置）"""
+    subprocess.run([sys.executable, f"{SCRIPTS}/session-resume.py", name, PR_NUMBER], env=os.environ.copy())
     time.sleep(3)
 
 
