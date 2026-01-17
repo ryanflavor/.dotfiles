@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Generate App Token
         id: app-token
-        if: ${{ secrets.DUO_APP_ID != '' }}
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.DUO_APP_ID }}
