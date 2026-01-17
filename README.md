@@ -31,6 +31,10 @@ Share commands, skills, and global agent instructions across Claude Code, Codex,
 
 Edit once, apply everywhere.
 
+## Skills
+
+- [Duoduo](./DUODUO.md) - 双 AI Agent 交叉审查 PR
+
 ## Install
 ```bash
 curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/install.sh | bash

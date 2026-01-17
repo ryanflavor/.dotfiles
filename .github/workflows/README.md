@@ -44,6 +44,7 @@ jobs:
 评论以你的 GitHub App 身份发布。
 
 **配置步骤**：
+
 1. 创建 GitHub App（需要 `contents: write`, `pull_requests: write`, `issues: write` 权限）
 2. 安装到目标仓库
 3. 在仓库 Settings → Secrets and variables → Actions 添加：
