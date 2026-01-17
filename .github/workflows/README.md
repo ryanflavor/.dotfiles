@@ -82,7 +82,6 @@ on:
 
 concurrency:
   group: duo-mention-${{ github.event.issue.number }}
-  cancel-in-progress: true
 
 jobs:
   get-runner:
