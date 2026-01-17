@@ -16,7 +16,7 @@ NAME = sys.argv[1]
 MODEL = sys.argv[2]
 PR = sys.argv[3]
 DAEMON = "--daemon" in sys.argv
-DROID = "/Users/notdp/.local/bin/droid"
+DROID = os.path.expanduser("~/.local/bin/droid")
 
 FIFO = f"/tmp/duo-{PR}-{NAME}"
 LOG = f"/tmp/duo-{PR}-{NAME}.log"
