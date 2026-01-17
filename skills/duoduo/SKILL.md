@@ -112,6 +112,7 @@ S=~/.factory/skills/duoduo/scripts
 | `$S/post-comment.sh` | 发评论             | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                     |
 | `$S/edit-comment.sh` | 编辑评论           | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                 |
 | `$S/get-comment.sh`  | 读取评论           | `$S/get-comment.sh $PR_NUMBER $REPO <marker>`                      |
+| `$S/duo-resume.sh`   | 恢复 session       | `$S/duo-resume.sh $PR_NUMBER <name>`                               |
 
 ## Redis 状态结构
 
@@ -135,6 +136,9 @@ s2:result           both_ok | same_issues | divergent
 
 # 阶段 4 状态（Opus 写入）
 s4:branch           修复分支名（格式: duo/pr<PR>-<desc>）
+
+# @Mention 状态（脚本初始化 idle，Orchestrator 完成后设置 done）
+mention:status      idle | processing | done
 ```
 
 ## 阶段执行
@@ -148,6 +152,96 @@ s4:branch           修复分支名（格式: duo/pr<PR>-<desc>）
 | 3    | `stages/3-cross-confirm.md`   | Orchestrator + Agent | 交叉确认 |
 | 4    | `stages/4-fix-verify.md`      | Opus + Codex         | 修复验证 |
 | 5    | `stages/5-summary.md`         | Orchestrator         | 汇总     |
+
+## 用户 @Mention 处理
+
+当收到 `<USER_MENTION>` 消息时，表示用户通过 PR 评论 @mention 了 bot，需要与之交互。
+
+### 消息格式
+
+```xml
+<USER_MENTION repo="owner/repo" pr="123" author="username">
+用户的评论内容...
+</USER_MENTION>
+```
+
+### 处理流程
+
+1. **发布占位评论**（告知用户正在处理）：
+
+   ```bash
+   $S/duo-set.sh $PR_NUMBER mention:status processing
+   
+   TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
+   MENTION_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-mention-reply -->
+   ## 🤖 Orchestrator 处理中
+   > 🕐 $TIMESTAMP
+
+   @$AUTHOR 收到消息，{随机ing词}...")
+   ```
+
+2. **读取 PR 所有评论**：
+
+   ```bash
+   gh pr view $PR_NUMBER --repo $REPO --json comments -q '.comments[].body'
+   ```
+
+3. **理解完整上下文**：
+   - 之前的审查结果（Codex/Opus 的评论）
+   - 修复记录（如有）
+   - 用户的历史讨论
+
+4. **着重处理用户最新消息**（`<USER_MENTION>` 中的内容）
+
+5. **更新占位评论，告知用户决定**：
+
+   ```bash
+   echo "$REPLY_CONTENT" | $S/edit-comment.sh $MENTION_COMMENT
+   ```
+
+   **评论格式**（必须严格遵循）：
+
+   ```markdown
+   <!-- duo-mention-reply -->
+   ## 🤖 Orchestrator 回复
+   > 🕐 $TIMESTAMP
+   
+   @$AUTHOR {回复内容}
+   
+   {如需执行动作，说明下一步}
+   ```
+
+   示例：
+   - "好的，我将重新发起审查..."
+   - "我将与 Opus 沟通纠正这个问题..."
+   - "针对你的问题：{回答内容}"
+
+6. **执行动作并设置完成状态**：
+
+   **整个交互完成后**（包括后续动作），设置：
+   ```bash
+   $S/duo-set.sh $PR_NUMBER mention:status done
+   ```
+   
+   | 场景 | 何时设置 done |
+   |------|---------------|
+   | 直接回答 | 回复用户后 |
+   | 重新审查 | 整个审查流程结束后（stage=done 后） |
+   | 与 Agent 沟通 | 沟通完成并回复用户后 |
+
+   **注意**：@Mention 场景下 Opus/Codex 可能已不存活，沟通前需检查并恢复：
+
+   ```bash
+   # 检查并恢复 Opus（如需与 Opus 沟通）
+   OPUS_PID=$(redis-cli HGET "duo:$PR_NUMBER" opus:pid)
+   if [ -z "$OPUS_PID" ] || ! kill -0 "$OPUS_PID" 2>/dev/null; then
+     $S/duo-resume.sh $PR_NUMBER opus
+   fi
+   ```
+
+   恢复后用 `$S/fifo-send.sh` 发送消息。
+
+- `author`: 评论用户的 GitHub 用户名，用于 @ 回复
 
 ## 图标
 

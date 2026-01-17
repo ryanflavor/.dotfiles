@@ -105,5 +105,7 @@ else:
                    capture_output=True)
     subprocess.run(["redis-cli", "HSET", f"duo:{PR}", f"{NAME}:log", LOG], 
                    capture_output=True)
+    subprocess.run(["redis-cli", "HSET", f"duo:{PR}", f"{NAME}:model", MODEL], 
+                   capture_output=True)
     
     print(session_id or "")

@@ -22,6 +22,6 @@ redis-cli HSET "$KEY" \
   started_at "$(date +%s)" \
   > /dev/null
 
-redis-cli EXPIRE "$KEY" 7200  # 2小时过期
+redis-cli EXPIRE "$KEY" 28800  # 8小时过期
 
 echo "$KEY"

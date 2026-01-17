@@ -69,6 +69,75 @@ secrets:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## @Mention 触发
+
+在 PR 评论中 @mention bot 与已有审查交互，创建 `.github/workflows/duo-mention.yml`：
+
+```yaml
+name: Duo Mention
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: duo-mention-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  get-runner:
+    if: |
+      github.event.issue.pull_request &&
+      (contains(github.event.comment.body, '@your-bot-name') ||
+       (startsWith(github.event.comment.body, '>') &&
+        contains(github.event.comment.body, 'Duo Review Summary')))
+    runs-on: [self-hosted, macos, arm64]
+    outputs:
+      runner: ${{ steps.get.outputs.runner }}
+    steps:
+      - name: Get runner from Redis or summary
+        id: get
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 先尝试 Redis
+          RUNNER=$(redis-cli HGET "duo:${{ github.event.issue.number }}" runner 2>/dev/null || echo "")
+          
+          # Redis 没有则从 summary 评论解析
+          if [ -z "$RUNNER" ]; then
+            RUNNER=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json comments -q '
+              .comments[] | select(.body | contains("<!-- duoduo-summary -->")) | .body
+            ' | grep -oE 'Runner: `[^`]+' | head -1 | sed 's/Runner: `//')
+          fi
+          
+          echo "runner=$RUNNER" >> $GITHUB_OUTPUT
+
+  duoduo:
+    needs: get-runner
+    if: needs.get-runner.outputs.runner != ''
+    uses: notdp/.dotfiles/.github/workflows/duo-mention.yml@main
+    with:
+      pr_number: ${{ github.event.issue.number }}
+      repo: ${{ github.repository }}
+      comment_body: ${{ github.event.comment.body }}
+      comment_author: ${{ github.event.comment.user.login }}
+      runner: ${{ needs.get-runner.outputs.runner }}
+    secrets:
+      DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
+      DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}
+```
+
+将 `@your-bot-name` 替换为你的 GitHub App bot 用户名（如 `@duoduo-bot`）。
+
+**触发方式**：
+- `@your-bot-name` 直接 @ bot
+- Quote reply Summary 评论
+
+**用途**：审查完成后，通过 @mention 与 Orchestrator 对话，可以：
+- 重新发起审查
+- 纠正审查结果
+- 询问问题
+
 ## 前置要求
 
 - **Self-hosted runner**（macOS arm64）
