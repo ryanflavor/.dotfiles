@@ -130,6 +130,7 @@ jobs:
       comment_body: ${{ github.event.comment.body }}
       comment_author: ${{ github.event.comment.user.login }}
       runner: ${{ needs.get-info.outputs.runner }}
+      bot_name: your-bot-name
     secrets:
       DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
       DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}

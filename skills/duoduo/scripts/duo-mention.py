@@ -19,6 +19,7 @@ COMMENT_AUTHOR = sys.argv[4]
 SCRIPTS = os.path.expanduser("~/.factory/skills/duoduo/scripts")
 KEY = f"duo:{PR_NUMBER}"
 OWNER, REPO_NAME = REPO.split("/")
+BOT_NAME = os.environ.get("BOT_NAME", "")
 
 # GraphQL 查询
 GQL_QUERY = '''
@@ -154,7 +155,7 @@ def main():
         
         if latest_id and latest_id != last_id:
             # 排除 bot 评论
-            if "[bot]" not in latest_author:
+            if latest_author != BOT_NAME:
                 print(f"📩 检测到新评论 (by {latest_author})，转发给 Orchestrator")
                 fifo_send("orchestrator", format_mention(latest_author, latest_body))
             last_id = latest_id

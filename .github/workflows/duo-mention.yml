@@ -26,6 +26,10 @@ on:
         required: true
         type: string
         description: "Runner name (must match the one used for duo-review)"
+      bot_name:
+        required: true
+        type: string
+        description: "Bot username for filtering (e.g., ordoduo)"
     secrets:
       DUO_APP_ID:
         required: false
@@ -57,6 +61,7 @@ jobs:
           REPO: ${{ inputs.repo }}
           PR_BRANCH: ${{ inputs.pr_branch }}
           BASE_BRANCH: ${{ inputs.base_branch }}
+          BOT_NAME: ${{ inputs.bot_name }}
         run: |
           ~/.dotfiles/skills/duoduo/scripts/duo-mention.py \
             ${{ inputs.pr_number }} \
