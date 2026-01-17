@@ -9,7 +9,7 @@ S=~/.dotfiles/skills/duoduo/scripts
 export RUNNER=${RUNNER:-local}
 
 # local/droid 模式：从 gh 获取 PR 信息
-# Actions 模式：从环境变量读取（已由 workflow 设置）
+# Actions 模式：从参数和环境变量读取
 if [ "$RUNNER" = "local" ] || [ "$RUNNER" = "droid" ]; then
   PR_INFO=$(gh pr view ${1:-} --json number,baseRefName,headRefName,headRepositoryOwner,headRepository 2>/dev/null || echo "")
   if [ -z "$PR_INFO" ]; then
@@ -20,6 +20,12 @@ if [ "$RUNNER" = "local" ] || [ "$RUNNER" = "droid" ]; then
   export BASE_BRANCH=$(echo "$PR_INFO" | jq -r .baseRefName)
   export PR_BRANCH=$(echo "$PR_INFO" | jq -r .headRefName)
   export REPO=$(echo "$PR_INFO" | jq -r '.headRepositoryOwner.login + "/" + .headRepository.name')
+else
+  # Actions 模式：从参数读取 (pr_number, repo, base_branch)，PR_BRANCH 从环境变量读取
+  export PR_NUMBER=$1
+  export REPO=$2
+  export BASE_BRANCH=$3
+  # PR_BRANCH 已由 workflow env 设置
 fi
 
 echo "🚀 Duo Review"
