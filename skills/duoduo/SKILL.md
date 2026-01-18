@@ -101,18 +101,18 @@ S=~/.factory/skills/duoduo/scripts
 
 ## 可用脚本
 
-| 脚本                 | 用途               | 用法                                                               |
-| -------------------- | ------------------ | ------------------------------------------------------------------ |
-| `$S/duo-init.sh`     | 初始化 Redis       | `$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH [RUNNER]` |
-| `$S/duo-set.sh`      | 设置状态           | `$S/duo-set.sh $PR_NUMBER <field> <value>`                         |
-| `$S/duo-get.sh`      | 获取状态           | `$S/duo-get.sh $PR_NUMBER <field>`                                 |
-| `$S/opus-start.py`   | 启动 Opus session  | `$S/opus-start.py $COMMENT_ID`                                     |
-| `$S/codex-start.py`  | 启动 Codex session | `$S/codex-start.py $COMMENT_ID`                                    |
-| `$S/fifo-send.sh`    | 给 session 发消息  | `$S/fifo-send.sh <orchestrator\|opus\|codex> $PR "<msg>"`          |
-| `$S/post-comment.sh` | 发评论             | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                     |
-| `$S/edit-comment.sh` | 编辑评论           | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                 |
-| `$S/get-comment.sh`  | 读取评论           | `$S/get-comment.sh $PR_NUMBER $REPO <marker>`                      |
-| `$S/session-resume.py` | 恢复 session     | `python3 $S/session-resume.py <name> $PR_NUMBER`                   |
+| 脚本                   | 用途               | 用法                                                               |
+| ---------------------- | ------------------ | ------------------------------------------------------------------ |
+| `$S/duo-init.sh`       | 初始化 Redis       | `$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH [RUNNER]` |
+| `$S/duo-set.sh`        | 设置状态           | `$S/duo-set.sh $PR_NUMBER <field> <value>`                         |
+| `$S/duo-get.sh`        | 获取状态           | `$S/duo-get.sh $PR_NUMBER <field>`                                 |
+| `$S/opus-start.py`     | 启动 Opus session  | `$S/opus-start.py $COMMENT_ID`                                     |
+| `$S/codex-start.py`    | 启动 Codex session | `$S/codex-start.py $COMMENT_ID`                                    |
+| `$S/fifo-send.sh`      | 给 session 发消息  | `$S/fifo-send.sh <orchestrator\|opus\|codex> $PR "<msg>"`          |
+| `$S/post-comment.sh`   | 发评论             | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                     |
+| `$S/edit-comment.sh`   | 编辑评论           | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                 |
+| `$S/get-comment.sh`    | 读取评论           | `$S/get-comment.sh $PR_NUMBER $REPO <marker>`                      |
+| `$S/session-resume.py` | 恢复 session       | `python3 $S/session-resume.py <name> $PR_NUMBER`                   |
 
 ## Redis 状态结构
 
@@ -219,15 +219,16 @@ mention:status      idle | processing | done
 6. **执行动作并设置完成状态**：
 
    **整个交互完成后**（包括后续动作），设置：
+
    ```bash
    $S/duo-set.sh $PR_NUMBER mention:status done
    ```
-   
-   | 场景 | 何时设置 done |
-   |------|---------------|
-   | 直接回答 | 回复用户后 |
-   | 重新审查 | 整个审查流程结束后（stage=done 后） |
-   | 与 Agent 沟通 | 沟通完成并回复用户后 |
+
+   | 场景          | 何时设置 done                       |
+   | ------------- | ----------------------------------- |
+   | 直接回答      | 回复用户后                          |
+   | 重新审查      | 整个审查流程结束后（stage=done 后） |
+   | 与 Agent 沟通 | 沟通完成并回复用户后                |
 
    **注意**：@Mention 场景下 Opus/Codex 可能已不存活，沟通前需检查并恢复：
 

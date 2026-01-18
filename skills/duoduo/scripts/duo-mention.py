@@ -111,9 +111,52 @@ def format_mention(author: str, body: str) -> str:
     return f'<USER_MENTION repo="{REPO}" pr="{PR_NUMBER}" author="{author}">\n{body}\n</USER_MENTION>'
 
 
+def restore_redis_from_summary():
+    """从 Summary 恢复 Redis 状态（只调用一次 API）"""
+    print("Redis expired, restoring from Summary...")
+    
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", PR_NUMBER, "--repo", REPO, "--json", "comments", "-q",
+             '.comments[] | select(.body | contains("<!-- duoduo-summary -->")) | .body'],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return ""
+        
+        summary = result.stdout
+        import re
+        
+        # 解析所有 session
+        for name in ["orchestrator", "opus", "codex"]:
+            match = re.search(rf"- {name.capitalize()}: `([^`]+)`", summary)
+            if match:
+                redis_set(f"{name}:session", match.group(1))
+        
+        # 解析 runner
+        match = re.search(r"- Runner: `([^`]+)`", summary)
+        if match:
+            redis_set("runner", match.group(1))
+        
+        # 恢复元信息（从环境变量）
+        redis_set("repo", REPO)
+        redis_set("pr", PR_NUMBER)
+        redis_set("branch", os.environ.get("PR_BRANCH", ""))
+        redis_set("base", os.environ.get("BASE_BRANCH", ""))
+        
+        # 返回 orchestrator session
+        match = re.search(r"- Orchestrator: `([^`]+)`", summary)
+        return match.group(1) if match else ""
+    except Exception:
+        return ""
+
+
 def main():
-    # 获取 session 信息
+    # 获取 session 信息（先 Redis，后 Summary）
     session = redis_get("orchestrator:session")
+    if not session:
+        session = restore_redis_from_summary()
+    
     pid = redis_get("orchestrator:pid")
     
     if not session:
