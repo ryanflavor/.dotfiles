@@ -5,67 +5,50 @@ description: 双 AI Agent 交叉审查 PR。自动判断共识、决定是否需
 
 # Duo Review - 双 Agent 交叉审查
 
-## ⚠️ 启动检测
+## 1. 启动检测 ⚠️
 
 执行 `echo $RUNNER` 检测环境变量：
 
-**有输出** → 脚本启动，跳过确认，直接执行阶段流程
+**有输出** → Orchestrator daemon 启动，直接执行阶段流程
 
-**无输出** → 用户直接启动，进入交互模式：
+**无输出** → 用户直接启动（终端 droid），进入交互模式：
 
-1. 执行 `gh pr view --json number,baseRefName,headRefName` 获取 PR 信息
+1. 执行 `gh pr view --json id,number,baseRefName,headRefName,headRepositoryOwner,headRepository` 获取 PR 信息
 2. 向用户确认："检测到 PR #XX (head → base)，开始审查？"
-3. 用户确认后执行：
+3. 用户确认后，先 export 环境变量再执行 `duo-cli init`：
 
    ```bash
    export RUNNER=droid
-   ~/.factory/skills/duoduo/scripts/duo-run.sh $PR_NUMBER
+   export DROID_REPO="owner/repo"
+   export DROID_PR_NUMBER=123
+   export DROID_BRANCH="feat/xxx"
+   export DROID_BASE="main"
+   export DROID_PR_NODE_ID="PR_kwXXX"
+   duo-cli init
    ```
 
 4. 若检测不到 PR，询问用户输入 PR 编号
 
-**⛔ 禁止**：如果 `duo-run.sh` 执行失败，**禁止**自己手动调用 `duo-init.sh` 或其他脚本来"修复"。直接报错并告知用户。
+**⚠️ 执行 `duo-cli init` 后立即停止！**
 
-## 角色
+`duo-cli init` 会启动 Orchestrator daemon（有 FIFO），由 daemon 执行后续所有阶段。
+当前终端 droid 没有 FIFO，无法接收 Agent 消息，**禁止继续执行任何 duo-cli 命令**。
+
+可选：告知用户 "Orchestrator 已启动，可用 `tail -f /tmp/duo-xxx.log` 查看进度"
+
+---
+
+## 2. 角色
 
 | 角色             | 模型                | 职责                           |
 | ---------------- | ------------------- | ------------------------------ |
 | **Orchestrator** | 执行 skill 的 droid | 编排流程、判断共识、决定下一步 |
-| **Codex**        | GPT-5.2             | PR 审查、交叉确认、验证修复    |
 | **Opus**         | Claude Opus 4.5     | PR 审查、交叉确认、执行修复    |
+| **Codex**        | GPT-5.2             | PR 审查、交叉确认、验证修复    |
 
-## 通信架构
+---
 
-```mermaid
-flowchart TB
-    subgraph Agents
-        Orchestrator[Orchestrator<br/>中心枢纽]
-        Opus[Opus<br/>Claude Opus 4.5]
-        Codex[Codex<br/>GPT-5.2]
-        
-        Orchestrator <-->|FIFO| Opus
-        Orchestrator <-->|FIFO| Codex
-    end
-    
-    Agents -->|UI| PR[PR Comments]
-```
-
-- **FIFO** = 数据通道（双向通信）
-- **评论** = 纯 UI（给人看，不参与数据流）
-
-## ⚠️ Orchestrator 行为规范
-
-**禁止：**
-
-- 读取 PR diff、REVIEW.md、代码文件
-- 等待 Agent 时执行任何命令（FIFO 消息会丢失！）
-
-**必须：**
-
-- 启动 Agent 后直接回复"等待中..."然后结束回复
-- Agent 结果会自动作为新消息发来：`<OPUS>...</OPUS>` / `<CODEX>...</CODEX>`
-
-## 五阶段总览
+## 3. 流程总览
 
 ```mermaid
 flowchart TD
@@ -86,169 +69,137 @@ flowchart TD
     S5 --> End([结束])
 ```
 
-## 输入
+### 阶段执行
 
-- `PR_NUMBER`: PR 编号
-- `PR_BRANCH`: PR 分支名
-- `BASE_BRANCH`: 目标分支
-- `REPO`: 仓库名（格式 owner/repo）
+**每个阶段执行前，必须先读取对应角色的 stages/ 文件获取详细指令！**
 
-## 脚本路径
+| 阶段 | Orchestrator                        | Opus                        | Codex                        |
+| ---- | ----------------------------------- | --------------------------- | ---------------------------- |
+| 1    | `1-pr-review-orchestrator.md`       | `1-pr-review-opus.md`       | `1-pr-review-codex.md`       |
+| 2    | `2-judge-consensus-orchestrator.md` | (不参与)                    | (不参与)                     |
+| 3    | `3-cross-confirm-orchestrator.md`   | `3-cross-confirm-opus.md`   | `3-cross-confirm-codex.md`   |
+| 4    | `4-fix-verify-orchestrator.md`      | `4-fix-verify-opus.md`      | `4-fix-verify-codex.md`      |
+| 5    | `5-summary-orchestrator.md`         | (不参与)                    | (不参与)                     |
 
-```bash
-S=~/.factory/skills/duoduo/scripts
+---
+
+## 4. 通信架构
+
+```mermaid
+flowchart TB
+    subgraph Agents
+        Orchestrator[Orchestrator<br/>监督者]
+        Opus[Opus<br/>Claude Opus 4.5]
+        Codex[Codex<br/>GPT-5.2]
+        
+        Opus <-->|FIFO| Codex
+        Orchestrator <-->|FIFO| Opus
+        Orchestrator <-->|FIFO| Codex
+    end
+    
+    SQLite[(SQLite<br/>消息记录)]
+    Agents --> SQLite
+    
+    Agents -->|UI| PR[PR Comments]
 ```
 
-## 可用脚本
-
-| 脚本                   | 用途               | 用法                                                               |
-| ---------------------- | ------------------ | ------------------------------------------------------------------ |
-| `$S/duo-init.sh`       | 初始化 Redis       | `$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH [RUNNER]` |
-| `$S/duo-set.sh`        | 设置状态           | `$S/duo-set.sh $PR_NUMBER <field> <value>`                         |
-| `$S/duo-get.sh`        | 获取状态           | `$S/duo-get.sh $PR_NUMBER <field>`                                 |
-| `$S/opus-start.py`     | 启动 Opus session  | `$S/opus-start.py $COMMENT_ID`                                     |
-| `$S/codex-start.py`    | 启动 Codex session | `$S/codex-start.py $COMMENT_ID`                                    |
-| `$S/fifo-send.sh`      | 给 session 发消息  | `$S/fifo-send.sh <orchestrator\|opus\|codex> $PR "<msg>"`          |
-| `$S/post-comment.sh`   | 发评论             | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                     |
-| `$S/edit-comment.sh`   | 编辑评论           | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                 |
-| `$S/get-comment.sh`    | 读取评论           | `$S/get-comment.sh $PR_NUMBER $REPO <marker>`                      |
-| `$S/session-resume.py` | 恢复 session       | `python3 $S/session-resume.py <name> $PR_NUMBER`                   |
-
-## Redis 状态结构
-
-```plain
-Key: duo:{PR_NUMBER}
-
-# 元信息（duo-init.sh 初始化）
-repo, pr, branch, base, runner, stage, started_at
-
-# Session 管理（session-start.py 自动写入）
-orchestrator:session, orchestrator:fifo, orchestrator:pid, orchestrator:log
-opus:session, opus:fifo, opus:pid, opus:log
-codex:session, codex:fifo, codex:pid, codex:log
-
-# 评论 ID（Orchestrator 写入，阶段 1 创建占位评论后保存）
-s1:codex:comment_id
-s1:opus:comment_id
-
-# 阶段结果（Orchestrator 写入）
-s2:result           both_ok | same_issues | divergent
-
-# 阶段 4 状态（Opus 写入）
-s4:branch           修复分支名（格式: duo/pr<PR>-<desc>）
-
-# @Mention 状态（脚本初始化 idle，Orchestrator 完成后设置 done）
-mention:status      idle | processing | done
-```
-
-## 阶段执行
-
-**每个阶段执行前，必须先读取对应的 stages/ 文件获取详细指令！**
-
-| 阶段 | 文件                          | 执行者               | 说明     |
-| ---- | ----------------------------- | -------------------- | -------- |
-| 1    | `stages/1-pr-review.md`       | Codex + Opus         | 并行审查 |
-| 2    | `stages/2-judge-consensus.md` | Orchestrator         | 判断共识 |
-| 3    | `stages/3-cross-confirm.md`   | Orchestrator + Agent | 交叉确认 |
-| 4    | `stages/4-fix-verify.md`      | Opus + Codex         | 修复验证 |
-| 5    | `stages/5-summary.md`         | Orchestrator         | 汇总     |
-
-## 用户 @Mention 处理
-
-当收到 `<USER_MENTION>` 消息时，表示用户通过 PR 评论 @mention 了 bot，需要与之交互。
+- **阶段 1-2**：Opus/Codex → Orchestrator（汇报结果）
+- **阶段 3**：Opus ↔ Codex 直接对话（交叉确认）
+- **SQLite** - 所有消息自动记录
+- **评论** = 纯 UI（给人看）
 
 ### 消息格式
 
+**Agent 间消息**（FIFO 传输）：
+
+```xml
+<MESSAGE from="opus" to="orchestrator">
+消息内容...
+</MESSAGE>
+```
+
+**用户 @Mention**（由 workflow 注入）：
+
 ```xml
 <USER_MENTION repo="owner/repo" pr="123" author="username">
-用户的评论内容...
+用户评论内容...
 </USER_MENTION>
 ```
 
-### 处理流程
+**PR 评论**（给人看，必须包含 HTML 注释标识）：
 
-1. **发布占位评论**（告知用户正在处理）：
+```markdown
+<!-- duo-{agent}-{type} -->
+## <img src='...' width='18' /> {Title}
+> 🕐 {TIMESTAMP}
 
-   ```bash
-   $S/duo-set.sh $PR_NUMBER mention:status processing
-   
-   TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
-   MENTION_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-mention-reply -->
-   ## 🤖 Orchestrator 处理中
-   > 🕐 $TIMESTAMP
+{内容}
+```
 
-   @$AUTHOR 收到消息，{随机ing词}...")
-   ```
+常用标识：`duo-opus-r1`, `duo-codex-r1`, `duo-opus-fix`, `duo-codex-verify`, `duo-summary`, `duo-mention-reply`
 
-2. **读取 PR 所有评论**：
+---
 
-   ```bash
-   gh pr view $PR_NUMBER --repo $REPO --json comments -q '.comments[].body'
-   ```
+## 5. Orchestrator 行为规范
 
-3. **理解完整上下文**：
-   - 之前的审查结果（Codex/Opus 的评论）
-   - 修复记录（如有）
-   - 用户的历史讨论
+**角色：监督者 + 仲裁者**
 
-4. **着重处理用户最新消息**（`<USER_MENTION>` 中的内容）
+- 启动流程，分配任务
+- 监控进度（通过 `duo-cli messages` 查询）
+- 在僵局时介入仲裁
 
-5. **更新占位评论，告知用户决定**：
+**禁止：**
 
-   ```bash
-   echo "$REPLY_CONTENT" | $S/edit-comment.sh $MENTION_COMMENT
-   ```
+- 读取 PR diff、REVIEW.md、代码文件
+- 等待 Agent 时执行任何命令（FIFO 消息会丢失！）
 
-   **评论格式**（必须严格遵循）：
+**必须：**
 
-   ```markdown
-   <!-- duo-mention-reply -->
-   ## 🤖 Orchestrator 回复
-   > 🕐 $TIMESTAMP
-   
-   @$AUTHOR {回复内容}
-   
-   {如需执行动作，说明下一步}
-   ```
+- 启动 Agent 后直接回复"等待中..."然后结束回复
+- Agent 结果会自动作为新消息发来
 
-   示例：
-   - "好的，我将重新发起审查..."
-   - "我将与 Opus 沟通纠正这个问题..."
-   - "针对你的问题：{回答内容}"
+---
 
-6. **执行动作并设置完成状态**：
+## 6. CLI 命令
 
-   **整个交互完成后**（包括后续动作），设置：
+| 命令                               | 用途         | 示例                                     |
+| ---------------------------------- | ------------ | ---------------------------------------- |
+| `duo-cli set <key> <value>`        | 设置状态     | `duo-cli set stage 2`                    |
+| `duo-cli get <key>`                | 获取状态     | `duo-cli get stage`                      |
+| `duo-cli spawn <agent>`            | 启动 Agent   | `duo-cli spawn opus`                     |
+| `duo-cli resume <agent>`           | 恢复 Agent   | `duo-cli resume orchestrator`            |
+| `duo-cli send <agent> <msg>`       | 发消息       | `duo-cli send opus "Review done"`        |
+| `duo-cli messages`                 | 查看消息历史 | `duo-cli messages --agent opus`          |
+| `duo-cli status`                   | 查看状态     | `duo-cli status`                         |
+| `duo-cli comment post <body>`      | 发布评论     | `duo-cli comment post --stdin`           |
+| `duo-cli comment list`             | 列出评论     | `duo-cli comment list`                   |
+| `duo-cli comment edit <id> <body>` | 编辑评论     | `duo-cli comment edit IC_xxx --stdin`    |
 
-   ```bash
-   $S/duo-set.sh $PR_NUMBER mention:status done
-   ```
+---
 
-   | 场景          | 何时设置 done                       |
-   | ------------- | ----------------------------------- |
-   | 直接回答      | 回复用户后                          |
-   | 重新审查      | 整个审查流程结束后（stage=done 后） |
-   | 与 Agent 沟通 | 沟通完成并回复用户后                |
-
-   **注意**：@Mention 场景下 Opus/Codex 可能已不存活，沟通前需检查并恢复：
-
-   ```bash
-   # 检查并恢复 Opus（如需与 Opus 沟通）
-   OPUS_PID=$(redis-cli HGET "duo:$PR_NUMBER" opus:pid)
-   if [ -z "$OPUS_PID" ] || ! kill -0 "$OPUS_PID" 2>/dev/null; then
-     python3 $S/session-resume.py opus $PR_NUMBER
-   fi
-   ```
-
-   恢复后用 `$S/fifo-send.sh` 发送消息。
-
-- `author`: 评论用户的 GitHub 用户名，用于 @ 回复
-
-## 图标
+## 7. 状态 Keys
 
 ```plain
-Codex: <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="18" />
-Opus:  <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="18" />
-Codex Loading: <img src="https://media.tenor.com/y98Q1SkqLCAAAAAM/chat-gpt.gif" width="18" />
-Opus Loading:  <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="18" />
+# 元信息
+stage               当前阶段 (1-5 或 done)
+runner              droid | workflow
+pr_node_id          PR GraphQL ID
+
+# Session（duo-cli spawn 自动管理）
+{agent}:session, {agent}:fifo, {agent}:pid, {agent}:log, {agent}:model
+
+# 阶段 2
+s2:result           both_ok | same_issues | divergent
+
+# 阶段 4
+s4:branch, s4:round
+
+# @Mention
+mention:status      idle | processing | done
 ```
+
+---
+
+## 8. @Mention 处理
+
+收到 `<USER_MENTION>` 消息时，读取 `stages/0-mention-orchestrator.md`。

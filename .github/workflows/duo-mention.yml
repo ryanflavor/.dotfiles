@@ -57,14 +57,13 @@ jobs:
       - name: Duo Mention
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          REPO: ${{ inputs.repo }}
-          PR_BRANCH: ${{ inputs.pr_branch }}
-          BASE_BRANCH: ${{ inputs.base_branch }}
+          DROID_PR_NUMBER: ${{ inputs.pr_number }}
+          DROID_REPO: ${{ inputs.repo }}
+          DROID_BRANCH: ${{ inputs.pr_branch }}
+          DROID_BASE: ${{ inputs.base_branch }}
+          RUNNER: ${{ inputs.runner }}
           BOT_NAME: ${{ inputs.bot_name }}
         run: |
-          ~/.dotfiles/skills/duoduo/scripts/duo-mention.py \
-            ${{ inputs.pr_number }} \
-            ${{ inputs.repo }} \
-            "${{ inputs.comment_body }}" \
-            "${{ inputs.comment_author }}"
+          duo-cli mention --author "${{ inputs.comment_author }}" --stdin <<'EOF'
+          ${{ inputs.comment_body }}
+          EOF

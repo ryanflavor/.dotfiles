@@ -61,10 +61,10 @@ jobs:
       - name: Duo Review
         env:
           RUNNER: ${{ runner.name }}
-          PR_BRANCH: ${{ inputs.pr_branch }}
+          DROID_PR_NUMBER: ${{ inputs.pr_number }}
+          DROID_REPO: ${{ inputs.repo }}
+          DROID_BRANCH: ${{ inputs.pr_branch }}
+          DROID_BASE: ${{ inputs.base_branch }}
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
         run: |
-          ~/.dotfiles/skills/duoduo/scripts/duo-run.sh \
-            ${{ inputs.pr_number }} \
-            ${{ inputs.repo }} \
-            ${{ inputs.base_branch }}
+          duo-cli init --watch
