@@ -22,7 +22,7 @@ CODEX_SESSION=$(duo-cli get codex:session)
 ## 评论模板
 
 ```markdown
-<!-- duoduo-summary -->
+<!-- duo-summary -->
 ## {✅|⚠️} Duo Review Summary
 > 🕐 $TIMESTAMP
 
