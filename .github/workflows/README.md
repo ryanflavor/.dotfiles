@@ -116,7 +116,7 @@ jobs:
           echo "pr_branch=$(echo $PR_INFO | jq -r .headRefName)" >> $GITHUB_OUTPUT
           echo "base_branch=$(echo $PR_INFO | jq -r .baseRefName)" >> $GITHUB_OUTPUT
           
-          # 从 SQLite 获取 runner
+          # 从 SQLite 获取 runner，包装成 JSON 数组格式
           SAFE_REPO=$(echo $REPO | tr '/' '-')
           DB_PATH="/tmp/duo-${SAFE_REPO}-${PR_NUMBER}.db"
           RUNNER=""
@@ -124,11 +124,17 @@ jobs:
             RUNNER=$(sqlite3 "$DB_PATH" "SELECT value FROM state WHERE key='runner'" 2>/dev/null || echo "")
           fi
           
+          # 包装成 JSON 数组格式
+          if [ -z "$RUNNER" ]; then
+            RUNNER='["self-hosted"]'
+          elif [[ ! "$RUNNER" == \[* ]]; then
+            RUNNER="[\"$RUNNER\"]"
+          fi
+          
           echo "runner=$RUNNER" >> $GITHUB_OUTPUT
 
   duoduo:
     needs: get-runner
-    if: needs.get-runner.outputs.runner != ''
     uses: notdp/.dotfiles/.github/workflows/duo-mention.yml@main
     with:
       pr_number: ${{ github.event.issue.number }}
