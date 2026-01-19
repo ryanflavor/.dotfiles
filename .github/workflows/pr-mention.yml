@@ -1,0 +1,42 @@
+name: PR Mention
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  check-mention:
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@ordoduo')
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr.outputs.number }}
+      pr_branch: ${{ steps.pr.outputs.branch }}
+      base_branch: ${{ steps.pr.outputs.base }}
+    steps:
+      - name: Get PR info
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          echo "branch=$(echo $PR_DATA | jq -r .head.ref)" >> $GITHUB_OUTPUT
+          echo "base=$(echo $PR_DATA | jq -r .base.ref)" >> $GITHUB_OUTPUT
+
+  mention:
+    needs: check-mention
+    uses: ./.github/workflows/duo-mention.yml
+    with:
+      pr_number: ${{ needs.check-mention.outputs.pr_number }}
+      repo: ${{ github.repository }}
+      pr_branch: ${{ needs.check-mention.outputs.pr_branch }}
+      base_branch: ${{ needs.check-mention.outputs.base_branch }}
+      comment_body: ${{ github.event.comment.body }}
+      comment_author: ${{ github.event.comment.user.login }}
+      runner: dotfiles-runner
+      bot_name: ordoduo[bot]
+    secrets:
+      DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
+      DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}
