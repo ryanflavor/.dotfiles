@@ -80,22 +80,6 @@ git diff origin/$DROID_BASE...HEAD
 ## {✅|⚠️} Duo Review Summary
 > 🕐 $TIMESTAMP
 
-| Agent                                                                                                   | 结论   |
-| ------------------------------------------------------------------------------------------------------- | ------ |
-| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> Codex      | {结论} |
-| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Opus | {结论} |
-
-{如有 findings:}
-### 审查发现
-
-| #   | 问题       | 状态              |
-| --- | ---------- | ----------------- |
-| 1   | 🔴 [P0] ... | ✅ 已修复 / ⏭️ 跳过 |
-
-{可选: 修复分支链接}
-
-**结论**: {一句话总结}
-
 ### 审查时间线
 
 | 时间 (UTC+8) | 事件                                          |
@@ -109,6 +93,23 @@ git diff origin/$DROID_BASE...HEAD
 | MM-DD HH:MM  | Codex 验证通过 / 验证失败                     |
 | MM-DD HH:MM  | ✅ 审查完成                                    |
 
+{如有 findings:}
+### 审查发现
+
+| #   | 问题       | 状态              |
+| --- | ---------- | ----------------- |
+| 1   | 🔴 [P0] ... | ✅ 已修复 / ⏭️ 跳过 |
+
+{可选: 修复分支链接}
+
+### 审查结论
+| Agent                                                                                                   | 结论   |
+| ------------------------------------------------------------------------------------------------------- | ------ |
+| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> Codex      | {结论} |
+| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Opus | {结论} |
+
+**结论**: {一句话总结}
+
 <details>
 <summary>Session Info</summary>
 
@@ -118,15 +119,6 @@ git diff origin/$DROID_BASE...HEAD
 - Codex: `$CODEX_SESSION`
 </details>
 ```
-
-**结论填写规则：**
-
-| 情况                | 图标 | Agent 结论        | 总结           |
-| ------------------- | ---- | ----------------- | -------------- |
-| both_ok             | ✅    | 未发现问题        | PR 可以合并    |
-| 修复验证通过        | ✅    | 已修复 / 验证通过 | 问题已修复     |
-| 达成共识无需修复    | ✅    | 交叉确认结论      | 经确认无需修复 |
-| 未达成共识/修复失败 | ⚠️    | 各自结论          | 需人工审查     |
 
 ### 3.2 生成 inline comments（如有确认的 findings）
 
@@ -181,7 +173,7 @@ Useful? React with 👍 / 👎.
 
 ## 4. 发布
 
-### 有确认的 Findings 时：用 Review
+### 有双方共识的 findings：用 Review + inline comments
 
 ```bash
 duo-cli review post --body "$SUMMARY_CONTENT" --stdin <<'EOF'
@@ -191,7 +183,11 @@ EOF
 duo-cli set stage done
 ```
 
-### 无确认的 Findings 时：用 Comment
+### 无双方共识的 findings 时：用 Comment
+
+以下情况使用 comment：
+- both_ok（双方都未发现问题）
+- 所有 findings 均为共识跳过或分歧跳过
 
 ```bash
 duo-cli comment post --stdin <<EOF
