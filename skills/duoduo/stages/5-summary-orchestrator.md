@@ -100,7 +100,8 @@ git diff origin/$DROID_BASE...HEAD
 | --- | ---------- | ----------------- |
 | 1   | 🔴 [P0] ... | ✅ 已修复 / ⏭️ 跳过 |
 
-{可选: 修复分支链接}
+{如有修复:}
+**修复分支**: `{branch_name}` ([`{short_hash}`](https://github.com/$DROID_REPO/commit/{full_hash}))
 
 ### 审查结论
 | Agent                                                                                                   | 结论   |
@@ -120,20 +121,37 @@ git diff origin/$DROID_BASE...HEAD
 </details>
 ```
 
-### 3.2 生成 inline comments（如有确认的 findings）
+### 3.2 生成 inline comments（仅已修复的 findings）
 
-针对交叉确认后的最终 findings（排除误报），生成 JSON 数组。
+**仅针对已修复的 findings** 生成 inline comments，在代码位置清晰阐述：
+
+- 问题是什么
+- 影响是什么
+- 如何修复的
+
+**跳过的 findings 不生成 inline comment**（误报无需在代码里标注，已在 summary 表格详细说明跳过原因）。
+
+**⚠️ 关键：inline comment 必须指向原 PR diff 中的问题行**
+
+修复通常在独立分支上（如 `duo/pr97-fix-xxx`），但 inline comment 要发到原 PR 上。因此：
+
+```bash
+# 获取原 PR 的 diff（不是修复后的 HEAD）
+git diff origin/$DROID_BASE...origin/$DROID_BRANCH
+```
+
+行号必须是**原 PR diff 中有问题的代码行**，而不是修复后的行号。
 
 **JSON 格式：**
 
-| 字段         | 必填 | 说明                               |
-| ------------ | ---- | ---------------------------------- |
-| `path`       | ✅    | 文件路径（相对仓库根目录）         |
-| `line`       | ✅    | 结束行号（PR diff 中的新文件行号） |
-| `start_line` | ❌    | 起始行号（多行时需要，单行时省略） |
-| `body`       | ✅    | 评论内容（见下方模板）             |
+| 字段         | 必填 | 说明                                      |
+| ------------ | ---- | ----------------------------------------- |
+| `path`       | ✅    | 文件路径（相对仓库根目录）                |
+| `line`       | ✅    | 结束行号（**原 PR diff** 中的新文件行号） |
+| `start_line` | ❌    | 起始行号（多行时需要，单行时省略）        |
+| `body`       | ✅    | 评论内容（见下方模板）                    |
 
-**注意**：行号必须在 PR diff 的变更范围内（新增或修改的行），否则 API 会报错。
+**注意**：行号必须在**原 PR diff** 的变更范围内（新增或修改的行），否则 API 会报 422 错误。
 
 **Body 模板：**
 
@@ -173,7 +191,7 @@ Useful? React with 👍 / 👎.
 
 ## 4. 发布
 
-### 有双方共识的 findings：用 Review + inline comments
+### 有已修复的 findings：用 Review + inline comments
 
 ```bash
 duo-cli review post --body "$SUMMARY_CONTENT" --stdin <<'EOF'
@@ -183,11 +201,12 @@ EOF
 duo-cli set stage done
 ```
 
-### 无双方共识的 findings 时：用 Comment
+### 无已修复的 findings：用 Comment
 
-以下情况使用 comment：
+以下情况使用 comment（无 inline）：
+
 - both_ok（双方都未发现问题）
-- 所有 findings 均为共识跳过或分歧跳过
+- 所有 findings 均为跳过（误报）
 
 ```bash
 duo-cli comment post --stdin <<EOF
