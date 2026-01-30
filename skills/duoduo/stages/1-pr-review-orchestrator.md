@@ -18,11 +18,17 @@ flowchart TD
 
 ## 执行
 
+**⚠️ 重要**：先检查是否有自定义模型配置，然后在 spawn 时传递 `--model` 参数。
+
 ```bash
 duo-cli set stage 1
 
+# 获取自定义模型配置（从环境变量或使用默认值）
+OPUS_MODEL="${DUO_MODEL_OPUS:-claude-opus-4-5-20251101}"
+CODEX_MODEL="${DUO_MODEL_CODEX:-gpt-5.2}"
+
 # 启动 Opus
-duo-cli spawn opus
+duo-cli spawn opus --model "$OPUS_MODEL"
 duo-cli send opus --stdin <<EOF
 <system-instruction>
 你是 Opus (Claude Opus 4.5)，duoduo review 审查者。
@@ -36,7 +42,7 @@ duo-cli send opus --stdin <<EOF
 EOF
 
 # 启动 Codex
-duo-cli spawn codex
+duo-cli spawn codex --model "$CODEX_MODEL"
 duo-cli send codex --stdin <<EOF
 <system-instruction>
 你是 Codex (GPT-5.2)，duoduo review 审查者。
