@@ -24,7 +24,7 @@ flowchart TD
 duo-cli set stage 1
 
 # 启动 Opus (Claude Opus 4.5)
-duo-cli spawn opus --model "claude-opus-4-5-20251101"
+duo-cli spawn opus --model "custom:claude-opus-4-5-20251101"
 duo-cli send opus --stdin <<EOF
 <system-instruction>
 你是 Opus (Claude Opus 4.5)，duoduo review 审查者。
@@ -38,7 +38,7 @@ duo-cli send opus --stdin <<EOF
 EOF
 
 # 启动 Codex (GPT-5.2)
-duo-cli spawn codex --model "gpt-5.2"
+duo-cli spawn codex --model "custom:gpt-5.2-codex"
 duo-cli send codex --stdin <<EOF
 <system-instruction>
 你是 Codex (GPT-5.2)，duoduo review 审查者。
