@@ -43,8 +43,8 @@ description: 双 AI Agent 交叉审查 PR。自动判断共识、决定是否需
 | 角色             | 模型                | 职责                           |
 | ---------------- | ------------------- | ------------------------------ |
 | **Orchestrator** | 执行 skill 的 droid | 编排流程、判断共识、决定下一步 |
-| **Opus**         | Claude Opus 4.5     | PR 审查、交叉确认、执行修复    |
-| **Codex**        | GPT-5.2             | PR 审查、交叉确认、验证修复    |
+| **Opus**         | Claude Opus 4.6     | PR 审查、交叉确认、执行修复    |
+| **Codex**        | GPT-5.3             | PR 审查、交叉确认、验证修复    |
 
 ---
 
@@ -89,8 +89,8 @@ flowchart TD
 flowchart TB
     subgraph Agents
         Orchestrator[Orchestrator<br/>监督者]
-        Opus[Opus<br/>Claude Opus 4.5]
-        Codex[Codex<br/>GPT-5.2]
+        Opus[Opus<br/>Claude Opus 4.6]
+        Codex[Codex<br/>GPT-5.3]
         
         Opus <-->|FIFO| Codex
         Orchestrator <-->|FIFO| Opus

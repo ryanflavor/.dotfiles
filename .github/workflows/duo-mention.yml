@@ -34,17 +34,17 @@ on:
         required: false
         type: string
         default: ''
-        description: "Model for Orchestrator (default: claude-opus-4-5-20251101)"
+        description: "Model for Orchestrator (default: claude-opus-4-6)"
       model_opus:
         required: false
         type: string
         default: ''
-        description: "Model for Opus agent (default: claude-opus-4-5-20251101)"
+        description: "Model for Opus agent (default: claude-opus-4-6)"
       model_codex:
         required: false
         type: string
         default: ''
-        description: "Model for Codex agent (default: gpt-5.2)"
+        description: "Model for Codex agent (default: gpt-5.3)"
     secrets:
       DUO_APP_ID:
         required: false

@@ -23,11 +23,11 @@ flowchart TD
 ```bash
 duo-cli set stage 1
 
-# 启动 Opus (Claude Opus 4.5)
-duo-cli spawn opus --model "custom:claude-opus-4-5-20251101"
+# 启动 Opus (Claude Opus 4.6)
+duo-cli spawn opus --model "custom:claude-opus-4-6"
 duo-cli send opus --stdin <<EOF
 <system-instruction>
-你是 Opus (Claude Opus 4.5)，duoduo review 审查者。
+你是 Opus (Claude Opus 4.6)，duoduo review 审查者。
 ⛔ FIRST STEP: load skill: duoduo
 </system-instruction>
 
@@ -37,11 +37,11 @@ duo-cli send opus --stdin <<EOF
 注意：先创建占位评论！
 EOF
 
-# 启动 Codex (GPT-5.2)
-duo-cli spawn codex --model "custom:gpt-5.2-codex"
+# 启动 Codex (GPT-5.3)
+duo-cli spawn codex --model "custom:gpt-5.3-codex"
 duo-cli send codex --stdin <<EOF
 <system-instruction>
-你是 Codex (GPT-5.2)，duoduo review 审查者。
+你是 Codex (GPT-5.3)，duoduo review 审查者。
 ⛔ FIRST STEP: load skill: duoduo
 </system-instruction>
 
