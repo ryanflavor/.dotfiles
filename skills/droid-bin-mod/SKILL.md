@@ -168,24 +168,26 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | 2   | 命令阈值     | `length>50`  | `length>99`    | 0    | 命令超 99 字符才截断                      |
 | 3+5 | 输出行数     | `aGR=4`      | `aGR=99`       | +1   | 输出显示 99 行，超过才显示提示            |
 | 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
-| 6   | model cycle  | cycleModel 入口 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
+| 6   | model cycle  | peek/cycle 函数 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
 | 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
 
 **注**：
 - mod1: 命令框提示（command truncated）
 - mod3+5: 输出区行数和提示（output truncated）由同一变量控制
-- mod6: 修改 cycleModel 和 cycleSpecModeModel 两个函数
+- mod6: 修改 `peekNextCycleModel`, `peekNextCycleSpecModeModel`, `cycleSpecModeModel` 三个函数
+  （`cycleModel` 是委托函数，无需修改）
 
 ### 修改 6: Ctrl+N 只在 custom model 间切换
 
-**位置**: `cycleModel` 和 `cycleSpecModeModel` 方法
+**目标函数**: `peekNextCycleModel`, `peekNextCycleSpecModeModel`, `cycleSpecModeModel` (3 个)
 
-**原始代码**:
+> `cycleModel` 是委托函数（调用 `peekNextCycleModel`），无 `validateModelAccess`，无需修改。
+
+**原始代码** (以 peekNextCycleModel 为例):
 
 ```javascript
-cycleModel(H){
-  if(H.length===0)return this.getModel();
-  // H 来自 qZ()，只包含 factory model ID
+peekNextCycleModel(H){
+  if(H.length===0)return null;
   ...
   if(!this.validateModelAccess(D).allowed)continue;
   ...
@@ -193,15 +195,15 @@ cycleModel(H){
 ```
 
 **修改**:
-1. 函数入口覆盖参数: `H=this.customModels.map(m=>m.id)` (+N bytes)
+1. 函数入口覆盖参数: `H=this.customModels.map(m=>m.id);` (+N bytes)
 2. 移除 `validateModelAccess` 检查，替换为等长注释 (-N bytes)
 
 ```javascript
-cycleModel(H){
-  H=this.customModels.map(m=>m.id);  // 覆盖为 custom model ID 列表
-  if(H.length===0)return this.getModel();
+peekNextCycleModel(H){
+  H=this.customModels.map(m=>m.id);
+  if(H.length===0)return null;
   ...
-  /*            */  // 注释填充，长度动态计算
+  /*            */
   ...
 }
 ```
@@ -209,8 +211,7 @@ cycleModel(H){
 **效果**: Ctrl+N 只在 settings.json 中配置的 custom model 间切换，`/model` 菜单不受影响
 
 **稳定锚点**（不受混淆影响）:
-- `cycleModel` / `cycleSpecModeModel` — 方法名
-- `this.getModel()` / `this.getSpecModeModel()` — 方法调用
+- `peekNextCycleModel` / `peekNextCycleSpecModeModel` / `cycleSpecModeModel` — 方法名
 - `this.validateModelAccess` / `.allowed` — 方法和属性名
 - `this.customModels` — 属性名
 
