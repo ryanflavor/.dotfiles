@@ -80,7 +80,24 @@ async function main() {
     return;
   }
 
-  const summaryLines = linked.map(t => `  ${t.path}`);
+  const skillLinks = linked.filter(t => t.type === 'skill');
+  const cmdLinks = linked.filter(t => t.type === 'command');
+  const agentLinks = linked.filter(t => t.type === 'agent');
+  const summaryLines = [];
+  if (skillLinks.length) {
+    summaryLines.push(`Skills (${skillLinks.length}):`);
+    skillLinks.forEach(t => summaryLines.push(`  → ${t.path}`));
+  }
+  if (cmdLinks.length) {
+    if (summaryLines.length) summaryLines.push('');
+    summaryLines.push(`Commands (${cmdLinks.length}):`);
+    cmdLinks.forEach(t => summaryLines.push(`  → ${t.path}`));
+  }
+  if (agentLinks.length) {
+    if (summaryLines.length) summaryLines.push('');
+    summaryLines.push(`Instructions (${agentLinks.length}):`);
+    agentLinks.forEach(t => summaryLines.push(`  → ${t.path}`));
+  }
   note(summaryLines.join('\n'), `Found ${linked.length} symlink(s)`);
 
   const proceed = await confirm({ message: 'Remove these symlinks?' });
