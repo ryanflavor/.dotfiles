@@ -16,11 +16,16 @@ function renderOption(option, isActive, selectedValues) {
     return `  ${pc.gray(SYM.UNSELECTED)} ${pc.strikethrough(pc.gray(label))}`;
   }
 
-  const prefix = isActive ? `${SYM.CURSOR} ` : '  ';
+  const prefix = isActive ? `${pc.cyan(SYM.CURSOR)} ` : '  ';
   const icon = isSelected
     ? pc.green(SYM.SELECTED)
     : isActive ? pc.cyan(SYM.UNSELECTED) : pc.dim(SYM.UNSELECTED);
-  const text = isActive ? `${pc.underline(label)}${hint}` : `${pc.dim(label)}${hint}`;
+  const parenIdx = label.lastIndexOf(' (');
+  const name = parenIdx > 0 ? label.slice(0, parenIdx) : label;
+  const pathHint = parenIdx > 0 ? ` ${pc.dim(label.slice(parenIdx + 1))}` : '';
+  const text = isActive
+    ? `${pc.underline(name)}${pathHint}${hint}`
+    : `${name}${pathHint}${hint}`;
   return `${prefix}${icon} ${text}`;
 }
 
