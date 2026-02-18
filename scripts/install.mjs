@@ -338,7 +338,7 @@ async function main() {
       lockedGroups: projUniversalAgents,
       initialValues: linkedValues(skillGroups, SKILLS_DIR),
       required: false,
-      maxItems: 12,
+      maxItems: 10,
     }),
     commands: () => styledMultiselect({
       message: 'Select command directories to link',
