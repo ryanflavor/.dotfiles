@@ -58,3 +58,28 @@ export function allAgentPaths() {
 export function allPaths() {
   return [...allSkillPaths(), ...allCommandPaths(), ...allAgentPaths()];
 }
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+export function detectDotfilesDir() {
+  const HOME = os.homedir();
+  const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
+  const votes = {};
+  for (const p of allSkillPaths()) {
+    const full = expand(p);
+    try {
+      if (fs.lstatSync(full).isSymbolicLink()) {
+        const dir = fs.readlinkSync(full).replace(/\/skills$/, '');
+        votes[dir] = (votes[dir] || 0) + 1;
+      }
+    } catch {}
+  }
+  let best = null;
+  let max = 0;
+  for (const [dir, count] of Object.entries(votes)) {
+    if (count > max) { best = dir; max = count; }
+  }
+  return best;
+}

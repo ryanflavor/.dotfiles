@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { intro, outro, note } from '@clack/prompts';
-import { allSkillPaths, allCommandPaths, allAgentPaths } from './lib/catalog.mjs';
+import { intro, outro, note, log } from '@clack/prompts';
+import { allSkillPaths, allCommandPaths, allAgentPaths, detectDotfilesDir } from './lib/catalog.mjs';
 import pc from 'picocolors';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -9,10 +9,11 @@ import path from 'node:path';
 
 const HOME = os.homedir();
 const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
+const shorten = (s) => s.replace(HOME, '~');
 
-const DOTFILES_DIR = expand(process.env.DOTFILES_DIR || '~/.dotfiles');
-const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
+const DOTFILES_DIR = detectDotfilesDir() || expand('~/.dotfiles');
 const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
+const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
 function checkLink(rawPath, expectedTarget) {
@@ -29,9 +30,8 @@ function checkLink(rawPath, expectedTarget) {
   } catch { return { status: 'missing' }; }
 }
 
-const shorten = (s) => s.replace(HOME, '~');
-
 function formatSection(results) {
+  if (results.length === 0) return [];
   const maxLen = Math.max(...results.map(r => r.path.length));
   return results.map(r => {
     const padded = r.path.padEnd(maxLen);
@@ -53,17 +53,19 @@ function checkSection(paths, expectedTarget) {
 }
 
 intro('.dotfiles status');
+log.info(`Detected source: ${shorten(DOTFILES_DIR)}`);
 
 const sections = [
   { title: 'Skills', results: checkSection(allSkillPaths(), SKILLS_DIR) },
   { title: 'Commands', results: checkSection(allCommandPaths(), COMMANDS_DIR) },
-  { title: 'Agents', results: checkSection(allAgentPaths(), AGENTS_FILE) },
+  { title: 'Instructions', results: checkSection(allAgentPaths(), AGENTS_FILE) },
 ];
 
 let totalLinked = 0;
 let totalAll = 0;
 
 for (const section of sections) {
+  if (section.results.length === 0) continue;
   const lines = formatSection(section.results);
   const linked = section.results.filter(r => r.status === 'linked').length;
   totalLinked += linked;

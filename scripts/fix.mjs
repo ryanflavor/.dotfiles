@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, confirm, spinner, note, log } from '@clack/prompts';
-import { allSkillPaths, allCommandPaths } from './lib/catalog.mjs';
+import { allSkillPaths, allCommandPaths, detectDotfilesDir } from './lib/catalog.mjs';
 import pc from 'picocolors';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ const HOME = os.homedir();
 const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
 const shorten = (s) => s.replace(HOME, '~');
 
-const DOTFILES_DIR = expand(process.env.DOTFILES_DIR || '~/.dotfiles');
+const DOTFILES_DIR = detectDotfilesDir() || expand('~/.dotfiles');
 const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');

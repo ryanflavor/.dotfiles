@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, confirm, spinner, note, log } from '@clack/prompts';
-import { allSkillPaths, allCommandPaths, allAgentPaths } from './lib/catalog.mjs';
+import { allSkillPaths, allCommandPaths, allAgentPaths, detectDotfilesDir } from './lib/catalog.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,9 +10,9 @@ const HOME = os.homedir();
 const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
 const shorten = (s) => s.replace(HOME, '~');
 
-const DOTFILES_DIR = expand(process.env.DOTFILES_DIR || '~/.dotfiles');
-const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
+const DOTFILES_DIR = detectDotfilesDir() || expand('~/.dotfiles');
 const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
+const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
 function findLatestBackup(fullPath) {
@@ -29,7 +29,6 @@ function findLatestBackup(fullPath) {
 
 function removeLink(rawPath, expectedTarget) {
   const full = expand(rawPath);
-
   try {
     const stat = fs.lstatSync(full);
     if (stat.isSymbolicLink()) {
@@ -57,10 +56,9 @@ function restoreBackup(rawPath) {
   return null;
 }
 
-// ── Main ─────────────────────────────────────────────────────
-
 async function main() {
   intro('.dotfiles uninstaller');
+  log.info(`Detected source: ${shorten(DOTFILES_DIR)}`);
 
   const targets = [
     ...allSkillPaths().map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
