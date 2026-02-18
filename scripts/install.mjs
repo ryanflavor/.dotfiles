@@ -130,6 +130,24 @@ function hasPackageContent() {
 async function main() {
   intro('.dotfiles installer');
 
+  let createdDir = null;
+  const createdLinks = [];
+
+  function rollback() {
+    for (const link of createdLinks) {
+      try { fs.unlinkSync(expand(link)); } catch {}
+    }
+    if (createdDir && fs.existsSync(createdDir)) {
+      fs.rmSync(createdDir, { recursive: true, force: true });
+    }
+  }
+
+  function bail() {
+    rollback();
+    cancel('Cancelled.');
+    process.exit(0);
+  }
+
   // ── Step 1: Installation scope ──
   const scope = await select({
     message: 'Installation scope',
@@ -138,7 +156,7 @@ async function main() {
       { value: 'project', label: 'Project', hint: 'Install in current directory (committed with your project)' },
     ],
   });
-  if (isCancel(scope)) { cancel('Cancelled.'); process.exit(0); }
+  if (isCancel(scope)) bail();
 
   const isGlobal = scope === 'global';
 
@@ -150,7 +168,7 @@ async function main() {
       { value: 'copy', label: 'Copy to all agents', hint: 'Independent copies for each agent' },
     ],
   });
-  if (isCancel(method)) { cancel('Cancelled.'); process.exit(0); }
+  if (isCancel(method)) { bail(); }
 
   // ── Step 3: Dotfiles directory ──
   const dirInput = await text({
@@ -158,7 +176,7 @@ async function main() {
     placeholder: isGlobal ? '~/.dotfiles' : '.agents',
     defaultValue: isGlobal ? '~/.dotfiles' : '.agents',
   });
-  if (isCancel(dirInput)) { cancel('Cancelled.'); process.exit(0); }
+  if (isCancel(dirInput)) { bail(); }
 
   const DOTFILES_DIR = isGlobal
     ? expand(dirInput.trim())
@@ -179,12 +197,14 @@ async function main() {
         { value: 'import', label: 'Import existing', hint: 'Clone your git repository' },
       ],
     });
-    if (isCancel(initMode)) { cancel('Cancelled.'); process.exit(0); }
+    if (isCancel(initMode)) { bail(); }
 
     if (initMode === 'new') {
       const s = spinner();
       s.start('Copying content from package...');
+      const existed = fs.existsSync(DOTFILES_DIR);
       fs.mkdirSync(DOTFILES_DIR, { recursive: true });
+      if (!existed) createdDir = DOTFILES_DIR;
       for (const dir of ['skills', 'commands', 'agents']) {
         const src = path.join(PACKAGE_ROOT, dir);
         const dst = path.join(DOTFILES_DIR, dir);
@@ -204,7 +224,7 @@ async function main() {
           initialValues: availableSkills,
           required: false,
         });
-        if (isCancel(selectedSkills)) { cancel('Cancelled.'); process.exit(0); }
+        if (isCancel(selectedSkills)) { bail(); }
         const keepSkills = new Set(selectedSkills || []);
         for (const s of availableSkills) {
           if (!keepSkills.has(s)) fs.rmSync(path.join(SKILLS_DIR, s), { recursive: true, force: true });
@@ -219,7 +239,7 @@ async function main() {
           initialValues: availableCommands,
           required: false,
         });
-        if (isCancel(selectedCommands)) { cancel('Cancelled.'); process.exit(0); }
+        if (isCancel(selectedCommands)) { bail(); }
         const keepCommands = new Set((selectedCommands || []).map(c => `${c}.md`));
         for (const f of fs.readdirSync(COMMANDS_DIR)) {
           if (f.endsWith('.md') && f !== '.gitkeep' && !keepCommands.has(f)) fs.unlinkSync(path.join(COMMANDS_DIR, f));
@@ -230,11 +250,12 @@ async function main() {
         message: 'Git repository URL?',
         placeholder: 'user/.dotfiles',
       });
-      if (isCancel(repoUrl)) { cancel('Cancelled.'); process.exit(0); }
+      if (isCancel(repoUrl)) { bail(); }
       const s = spinner();
       s.start('Cloning repository...');
       try {
         await execAsync(`gh repo clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`);
+        createdDir = DOTFILES_DIR;
         s.stop('Repository cloned.');
       } catch (err) {
         s.stop('Clone failed.');
@@ -291,7 +312,7 @@ async function main() {
     required: false,
     maxItems: 10,
   });
-  if (isCancel(selectedAgents)) { cancel('Cancelled.'); process.exit(0); }
+  if (isCancel(selectedAgents)) { bail(); }
 
   const chosen = new Set(selectedAgents || []);
   const chosenAgents = AGENTS.filter(a => chosen.has(a.name));
@@ -336,7 +357,7 @@ async function main() {
   note(summaryLines.join('\n'), 'Installation Summary');
 
   const proceed = await confirm({ message: 'Proceed with installation?' });
-  if (!proceed || typeof proceed === 'symbol') { cancel('Cancelled.'); process.exit(0); }
+  if (!proceed || typeof proceed === 'symbol') { bail(); }
 
   // ── Execute ──
   const s = spinner();
@@ -350,6 +371,7 @@ async function main() {
         const r = method === 'symlink'
           ? createLink(item, target)
           : createCopy(item, target);
+        if (r === 'created') createdLinks.push(item);
         stats[r === 'created' ? 'created' : 'exists']++;
       } catch (err) {
         stats.errors.push(`${item}: ${err.message}`);
@@ -374,6 +396,10 @@ async function main() {
   }
 
   if (resultLines.length) note(resultLines.join('\n'), 'Results');
+
+  // Installation succeeded, disable rollback
+  createdDir = null;
+  createdLinks.length = 0;
 
   // ── Optional: git init ──
   const hasGit = fs.existsSync(path.join(DOTFILES_DIR, '.git'));
