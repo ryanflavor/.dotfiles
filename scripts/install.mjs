@@ -370,6 +370,7 @@ async function main() {
         execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
         execSync(`git remote add origin "${repoUrl.trim()}"`, { cwd: DOTFILES_DIR, stdio: 'pipe' });
         execSync('git fetch origin', { cwd: DOTFILES_DIR, stdio: 'pipe' });
+        execSync('git reset origin/main', { cwd: DOTFILES_DIR, stdio: 'pipe' });
         execSync('git branch -u origin/main', { cwd: DOTFILES_DIR, stdio: 'pipe' });
         log.info(`Git initialized with remote: ${repoUrl.trim()}`);
       }
