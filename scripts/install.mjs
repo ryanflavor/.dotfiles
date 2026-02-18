@@ -333,17 +333,22 @@ async function main() {
   // ── Summary ──
   const methodLabel = method === 'symlink' ? 'Symlink' : 'Copy';
   const summaryLines = [];
-
-  const agentNames = [
-    ...UNIVERSAL_AGENTS,
-    ...chosenAgents.map(a => a.name),
-  ];
-  summaryLines.push(`Agents (${agentNames.length}): ${agentNames.join(', ')}`);
+  if (skillPaths.length) {
+    summaryLines.push(`Skills (${skillPaths.length}):`);
+    skillPaths.forEach(s => summaryLines.push(`  → ${s}`));
+  }
+  if (commandPaths.length) {
+    if (summaryLines.length) summaryLines.push('');
+    summaryLines.push(`Commands (${commandPaths.length}):`);
+    commandPaths.forEach(c => summaryLines.push(`  → ${c}`));
+  }
+  if (instructionPaths.length) {
+    if (summaryLines.length) summaryLines.push('');
+    summaryLines.push(`Instructions (${instructionPaths.length}):`);
+    instructionPaths.forEach(i => summaryLines.push(`  → ${i}`));
+  }
   summaryLines.push('');
-  summaryLines.push(`Links: ${skillPaths.length} skills + ${commandPaths.length} commands + ${instructionPaths.length} instructions`);
-  summaryLines.push('');
-  summaryLines.push(`Scope: ${isGlobal ? 'Global' : 'Project'}`);
-  summaryLines.push(`Method: ${methodLabel}`);
+  summaryLines.push(`Scope: ${isGlobal ? 'Global' : 'Project'}  │  Method: ${methodLabel}`);
   summaryLines.push(`Source: ${shorten(DOTFILES_DIR)}`);
 
   note(summaryLines.join('\n'), 'Installation Summary');
