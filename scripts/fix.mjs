@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, confirm, spinner, note, log } from '@clack/prompts';
+import { allSkillPaths, allCommandPaths } from './lib/catalog.mjs';
 import pc from 'picocolors';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -16,30 +17,10 @@ const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
-let config;
-try {
-  const raw = fs.readFileSync(path.join(DOTFILES_DIR, 'scripts', 'config.json'), 'utf-8');
-  config = JSON.parse(raw);
-} catch {
-  config = {
-    commands: [
-      '~/.claude/commands', '~/.codex/prompts',
-      '~/.factory/commands', '~/.gemini/antigravity/global_workflows',
-    ],
-    skills: [
-      '~/.agents/skills', '~/.claude/skills', '~/.codex/skills',
-      '~/.factory/skills', '~/.gemini/antigravity/skills',
-    ],
-    agents: [
-      '~/.claude/CLAUDE.md', '~/.factory/AGENTS.md', '~/.codex/AGENTS.md',
-    ],
-  };
-}
-
 function findFixable() {
   const targets = [
-    ...config.skills.map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
-    ...config.commands.map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' })),
+    ...allSkillPaths().map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
+    ...allCommandPaths().map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' })),
   ];
 
   return targets.filter(t => {

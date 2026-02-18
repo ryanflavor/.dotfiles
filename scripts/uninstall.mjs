@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, confirm, spinner, note, log } from '@clack/prompts';
+import { allSkillPaths, allCommandPaths, allAgentPaths } from './lib/catalog.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,35 +14,6 @@ const DOTFILES_DIR = expand(process.env.DOTFILES_DIR || '~/.dotfiles');
 const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
-
-// ── Collect all known link targets ───────────────────────────
-
-let config;
-try {
-  const raw = fs.readFileSync(path.join(DOTFILES_DIR, 'scripts', 'config.json'), 'utf-8');
-  config = JSON.parse(raw);
-} catch {
-  config = {
-    commands: [
-      '~/.claude/commands',
-      '~/.codex/prompts',
-      '~/.factory/commands',
-      '~/.gemini/antigravity/global_workflows',
-    ],
-    skills: [
-      '~/.agents/skills',
-      '~/.claude/skills',
-      '~/.codex/skills',
-      '~/.factory/skills',
-      '~/.gemini/antigravity/skills',
-    ],
-    agents: [
-      '~/.claude/CLAUDE.md',
-      '~/.factory/AGENTS.md',
-      '~/.codex/AGENTS.md',
-    ],
-  };
-}
 
 function findLatestBackup(fullPath) {
   const dir = path.dirname(fullPath);
@@ -91,9 +63,9 @@ async function main() {
   intro('.dotfiles uninstaller');
 
   const targets = [
-    ...config.skills.map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
-    ...config.commands.map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' })),
-    ...config.agents.map(p => ({ path: p, target: AGENTS_FILE, type: 'agent' })),
+    ...allSkillPaths().map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
+    ...allCommandPaths().map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' })),
+    ...allAgentPaths().map(p => ({ path: p, target: AGENTS_FILE, type: 'agent' })),
   ];
 
   const linked = targets.filter(t => {

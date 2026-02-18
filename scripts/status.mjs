@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, note } from '@clack/prompts';
+import { allSkillPaths, allCommandPaths, allAgentPaths } from './lib/catalog.mjs';
 import pc from 'picocolors';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,26 +14,6 @@ const DOTFILES_DIR = expand(process.env.DOTFILES_DIR || '~/.dotfiles');
 const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
-
-let config;
-try {
-  const raw = fs.readFileSync(path.join(DOTFILES_DIR, 'scripts', 'config.json'), 'utf-8');
-  config = JSON.parse(raw);
-} catch {
-  config = {
-    commands: [
-      '~/.claude/commands', '~/.codex/prompts',
-      '~/.factory/commands', '~/.gemini/antigravity/global_workflows',
-    ],
-    skills: [
-      '~/.agents/skills', '~/.claude/skills', '~/.codex/skills',
-      '~/.factory/skills', '~/.gemini/antigravity/skills',
-    ],
-    agents: [
-      '~/.claude/CLAUDE.md', '~/.factory/AGENTS.md', '~/.codex/AGENTS.md',
-    ],
-  };
-}
 
 function checkLink(rawPath, expectedTarget) {
   const full = expand(rawPath);
@@ -74,9 +55,9 @@ function checkSection(paths, expectedTarget) {
 intro('.dotfiles status');
 
 const sections = [
-  { title: 'Skills', results: checkSection(config.skills, SKILLS_DIR) },
-  { title: 'Commands', results: checkSection(config.commands, COMMANDS_DIR) },
-  { title: 'Agents', results: checkSection(config.agents, AGENTS_FILE) },
+  { title: 'Skills', results: checkSection(allSkillPaths(), SKILLS_DIR) },
+  { title: 'Commands', results: checkSection(allCommandPaths(), COMMANDS_DIR) },
+  { title: 'Agents', results: checkSection(allAgentPaths(), AGENTS_FILE) },
 ];
 
 let totalLinked = 0;
