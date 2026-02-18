@@ -226,17 +226,17 @@ async function main() {
     } else {
       const repoUrl = await text({
         message: 'Git repository URL?',
-        placeholder: 'https://github.com/user/.dotfiles.git',
+        placeholder: 'user/.dotfiles',
       });
       if (isCancel(repoUrl)) { cancel('Cancelled.'); process.exit(0); }
       const s = spinner();
       s.start('Cloning repository...');
       try {
-        execSync(`git clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
+        execSync(`gh repo clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
         s.stop('Repository cloned.');
       } catch (err) {
         s.stop('Clone failed.');
-        log.error(`git clone failed: ${err.message}`);
+        log.error(`gh repo clone failed: ${err.message}`);
         process.exit(1);
       }
     }
