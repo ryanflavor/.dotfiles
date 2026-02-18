@@ -5,13 +5,13 @@ import {
   isCancel, spinner, note, log,
 } from '@clack/prompts';
 import { paginatedGroupMultiselect, styledMultiselect } from './lib/paginated-group-multiselect.mjs';
-import { execSync, exec } from 'node:child_process';
+import { execFileSync, execFile as execFileCb } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFileCb);
 
 const HOME = os.homedir();
 const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
@@ -55,8 +55,9 @@ function createLink(linkPath, target) {
     } else if (stat.isDirectory()) {
       const bak = `${full}.bak-${Date.now()}`;
       fs.renameSync(full, bak);
-      try { execSync(`rsync -a --ignore-existing "${bak}/" "${target}/"`, { stdio: 'pipe' }); }
-      catch { try { execSync(`cp -an "${bak}/." "${target}/"`, { stdio: 'pipe' }); } catch {} }
+      try { execFileSync('rsync', ['-a', '--ignore-existing', `${bak}/`, `${target}/`], { stdio: 'pipe' }); }
+      catch { try { execFileSync('cp', ['-an', `${bak}/.`, `${target}/`], { stdio: 'pipe' }); } catch {} }
+      log.warn(`Merged ${shorten(full)} into ${shorten(target)}, backup: ${shorten(bak)}`);
     } else if (stat.isFile()) {
       fs.renameSync(full, `${full}.bak-${Date.now()}`);
     }
@@ -76,8 +77,8 @@ function createCopy(destPath, source) {
   const srcStat = fs.statSync(source);
   if (srcStat.isDirectory()) {
     fs.mkdirSync(full, { recursive: true });
-    try { execSync(`rsync -a "${source}/" "${full}/"`, { stdio: 'pipe' }); }
-    catch { execSync(`cp -r "${source}/." "${full}/"`, { stdio: 'pipe' }); }
+    try { execFileSync('rsync', ['-a', `${source}/`, `${full}/`], { stdio: 'pipe' }); }
+    catch { execFileSync('cp', ['-r', `${source}/.`, `${full}/`], { stdio: 'pipe' }); }
   } else {
     fs.copyFileSync(source, full);
   }
@@ -204,8 +205,8 @@ async function main() {
         const dst = path.join(DOTFILES_DIR, dir);
         if (fs.existsSync(src)) {
           fs.mkdirSync(dst, { recursive: true });
-          try { execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' }); }
-          catch { execSync(`cp -r "${src}/." "${dst}/"`, { stdio: 'pipe' }); }
+          try { execFileSync('rsync', ['-a', '--ignore-existing', `${src}/`, `${dst}/`], { stdio: 'pipe' }); }
+          catch { execFileSync('cp', ['-r', `${src}/.`, `${dst}/`], { stdio: 'pipe' }); }
         }
       }
       s.stop('Content copied.');
@@ -248,7 +249,7 @@ async function main() {
       const s = spinner();
       s.start('Cloning repository...');
       try {
-        await execAsync(`gh repo clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`);
+        await execFileAsync('gh', ['repo', 'clone', repoUrl.trim(), DOTFILES_DIR]);
         createdDir = DOTFILES_DIR;
         s.stop('Repository cloned.');
       } catch (err) {
@@ -264,12 +265,15 @@ async function main() {
     log.warn(`${shorten(DOTFILES_DIR)} already has content, skipping initialization.`);
   }
 
-  // Ensure directories exist
-  fs.mkdirSync(COMMANDS_DIR, { recursive: true });
-  fs.mkdirSync(SKILLS_DIR, { recursive: true });
-  fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+  // Ensure directories exist (skip for git repos — user manages their own structure)
+  const isGitRepo = fs.existsSync(path.join(DOTFILES_DIR, '.git'));
+  if (!isGitRepo) {
+    fs.mkdirSync(COMMANDS_DIR, { recursive: true });
+    fs.mkdirSync(SKILLS_DIR, { recursive: true });
+    fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+  }
 
-  if (isGlobal && !fs.existsSync(AGENTS_FILE)) {
+  if (!isGitRepo && isGlobal && !fs.existsSync(AGENTS_FILE)) {
     log.info('First install — merging existing agent instruction files...');
     let content = '';
     for (const a of AGENTS) {
@@ -379,7 +383,7 @@ async function main() {
   doInstall(skillPaths, SKILLS_DIR);
   doInstall(commandPaths, COMMANDS_DIR);
   doInstall(instructionPaths, AGENTS_FILE);
-  ensureFrontMatter(COMMANDS_DIR);
+  if (!isGitRepo) ensureFrontMatter(COMMANDS_DIR);
 
   s.stop('Done!');
 
@@ -409,8 +413,8 @@ async function main() {
       });
       if (!isCancel(repoUrl) && repoUrl?.trim()) {
         try {
-          execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
-          execSync(`git remote add origin "${repoUrl.trim()}"`, { cwd: DOTFILES_DIR, stdio: 'pipe' });
+          execFileSync('git', ['init'], { cwd: DOTFILES_DIR, stdio: 'pipe' });
+          execFileSync('git', ['remote', 'add', 'origin', repoUrl.trim()], { cwd: DOTFILES_DIR, stdio: 'pipe' });
           log.info(`Git initialized with remote: ${repoUrl.trim()}`);
         } catch (err) {
           log.warn(`Git setup failed: ${err.message}`);
