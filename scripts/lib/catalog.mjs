@@ -55,10 +55,6 @@ export function allAgentPaths() {
   return AGENTS.filter(a => a.instructions).map(a => a.instructions);
 }
 
-export function allPaths() {
-  return [...allSkillPaths(), ...allCommandPaths(), ...allAgentPaths()];
-}
-
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

@@ -6,11 +6,12 @@ import {
 } from '@clack/prompts';
 import { paginatedGroupMultiselect, styledMultiselect } from './lib/paginated-group-multiselect.mjs';
 import { execSync, exec } from 'node:child_process';
-import { promisify } from 'node:util';
-const execAsync = promisify(exec);
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 const HOME = os.homedir();
 const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
@@ -118,13 +119,6 @@ function scanCommands(dir) {
     .map(f => f.replace(/\.md$/, ''));
 }
 
-function hasPackageContent() {
-  const s = path.join(PACKAGE_ROOT, 'skills');
-  const c = path.join(PACKAGE_ROOT, 'commands');
-  return (fs.existsSync(s) && scanDir(s).length > 0) ||
-    (fs.existsSync(c) && scanCommands(c).length > 0);
-}
-
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -168,7 +162,7 @@ async function main() {
       { value: 'copy', label: 'Copy to all agents', hint: 'Independent copies for each agent' },
     ],
   });
-  if (isCancel(method)) { bail(); }
+  if (isCancel(method)) bail();
 
   // ── Step 3: Dotfiles directory ──
   const dirInput = await text({
@@ -176,7 +170,7 @@ async function main() {
     placeholder: isGlobal ? '~/.dotfiles' : '.agents',
     defaultValue: isGlobal ? '~/.dotfiles' : '.agents',
   });
-  if (isCancel(dirInput)) { bail(); }
+  if (isCancel(dirInput)) bail();
 
   const DOTFILES_DIR = isGlobal
     ? expand(dirInput.trim())
@@ -197,7 +191,7 @@ async function main() {
         { value: 'import', label: 'Import existing', hint: 'Clone your git repository' },
       ],
     });
-    if (isCancel(initMode)) { bail(); }
+    if (isCancel(initMode)) bail();
 
     if (initMode === 'new') {
       const s = spinner();
@@ -224,7 +218,7 @@ async function main() {
           initialValues: availableSkills,
           required: false,
         });
-        if (isCancel(selectedSkills)) { bail(); }
+        if (isCancel(selectedSkills)) bail();
         const keepSkills = new Set(selectedSkills || []);
         for (const s of availableSkills) {
           if (!keepSkills.has(s)) fs.rmSync(path.join(SKILLS_DIR, s), { recursive: true, force: true });
@@ -239,7 +233,7 @@ async function main() {
           initialValues: availableCommands,
           required: false,
         });
-        if (isCancel(selectedCommands)) { bail(); }
+        if (isCancel(selectedCommands)) bail();
         const keepCommands = new Set((selectedCommands || []).map(c => `${c}.md`));
         for (const f of fs.readdirSync(COMMANDS_DIR)) {
           if (f.endsWith('.md') && f !== '.gitkeep' && !keepCommands.has(f)) fs.unlinkSync(path.join(COMMANDS_DIR, f));
@@ -250,7 +244,7 @@ async function main() {
         message: 'Git repository URL?',
         placeholder: 'user/.dotfiles',
       });
-      if (isCancel(repoUrl)) { bail(); }
+      if (isCancel(repoUrl)) bail();
       const s = spinner();
       s.start('Cloning repository...');
       try {
@@ -312,7 +306,7 @@ async function main() {
     required: false,
     maxItems: 10,
   });
-  if (isCancel(selectedAgents)) { bail(); }
+  if (isCancel(selectedAgents)) bail();
 
   const chosen = new Set(selectedAgents || []);
   const chosenAgents = AGENTS.filter(a => chosen.has(a.name));
@@ -357,7 +351,7 @@ async function main() {
   note(summaryLines.join('\n'), 'Installation Summary');
 
   const proceed = await confirm({ message: 'Proceed with installation?' });
-  if (!proceed || typeof proceed === 'symbol') { bail(); }
+  if (!proceed || typeof proceed === 'symbol') bail();
 
   // ── Execute ──
   const s = spinner();
