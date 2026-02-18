@@ -253,6 +253,9 @@ async function main() {
         s.stop('Repository cloned.');
       } catch (err) {
         s.stop('Clone failed.');
+        if (fs.existsSync(DOTFILES_DIR)) {
+          fs.rmSync(DOTFILES_DIR, { recursive: true, force: true });
+        }
         log.error(`gh repo clone failed: ${err.message}`);
         process.exit(1);
       }
@@ -405,9 +408,13 @@ async function main() {
         placeholder: 'https://github.com/user/.dotfiles.git',
       });
       if (!isCancel(repoUrl) && repoUrl?.trim()) {
-        execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
-        execSync(`git remote add origin "${repoUrl.trim()}"`, { cwd: DOTFILES_DIR, stdio: 'pipe' });
-        log.info(`Git initialized with remote: ${repoUrl.trim()}`);
+        try {
+          execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
+          execSync(`git remote add origin "${repoUrl.trim()}"`, { cwd: DOTFILES_DIR, stdio: 'pipe' });
+          log.info(`Git initialized with remote: ${repoUrl.trim()}`);
+        } catch (err) {
+          log.warn(`Git setup failed: ${err.message}`);
+        }
       }
     }
   }
