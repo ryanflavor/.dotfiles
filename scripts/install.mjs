@@ -18,7 +18,6 @@ const PACKAGE_ROOT = path.resolve(SCRIPT_DIR, '..');
 
 import { UNIVERSAL_AGENTS, UNIVERSAL, AGENTS } from './lib/catalog.mjs';
 
-const REPO_URL = 'https://github.com/notdp/.dotfiles.git';
 const IGNORE_DIRS = new Set(['.system', '.git', '.github', '.ruff_cache', 'node_modules']);
 
 // ── Path helpers ─────────────────────────────────────────────
@@ -171,58 +170,25 @@ async function main() {
   const isSameDir = path.resolve(PACKAGE_ROOT) === path.resolve(DOTFILES_DIR);
 
   if (!isSameDir && needsInit(DOTFILES_DIR)) {
-    const usePackage = hasPackageContent();
-    const sourceLabel = usePackage ? 'package' : 'GitHub';
-
-    const wantPresets = await confirm({
-      message: `Install pre-made skills & commands from ${sourceLabel}?`,
+    const wantPresets = hasPackageContent() && await confirm({
+      message: 'Install pre-made skills & commands from package?',
     });
     if (isCancel(wantPresets)) { cancel('Cancelled.'); process.exit(0); }
 
     if (wantPresets) {
       const s = spinner();
-
-      if (usePackage) {
-        s.start('Copying content from package...');
-        fs.mkdirSync(DOTFILES_DIR, { recursive: true });
-        for (const dir of ['skills', 'commands', 'agents']) {
-          const src = path.join(PACKAGE_ROOT, dir);
-          const dst = path.join(DOTFILES_DIR, dir);
-          if (fs.existsSync(src)) {
-            fs.mkdirSync(dst, { recursive: true });
-            try { execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' }); }
-            catch { execSync(`cp -r "${src}/." "${dst}/"`, { stdio: 'pipe' }); }
-          }
-        }
-        s.stop('Content copied.');
-      } else {
-        s.start('Cloning repository...');
-        try {
-          if (fs.existsSync(DOTFILES_DIR)) {
-            const tmp = path.join(os.tmpdir(), `dotfiles-${Date.now()}`);
-            execSync(`git clone --depth 1 "${REPO_URL}" "${tmp}"`, { stdio: 'pipe' });
-            for (const dir of ['skills', 'commands', 'agents']) {
-              const src = path.join(tmp, dir);
-              const dst = path.join(DOTFILES_DIR, dir);
-              if (fs.existsSync(src)) {
-                fs.mkdirSync(dst, { recursive: true });
-                execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' });
-              }
-            }
-            fs.rmSync(tmp, { recursive: true, force: true });
-          } else {
-            execSync(`git clone --depth 1 "${REPO_URL}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
-          }
-          s.stop('Repository cloned.');
-        } catch (err) {
-          s.stop('Clone failed.');
-          log.warn(`git clone failed: ${err.message}`);
-          log.info('Continuing with empty directories...');
-          fs.mkdirSync(SKILLS_DIR, { recursive: true });
-          fs.mkdirSync(COMMANDS_DIR, { recursive: true });
-          fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+      s.start('Copying content from package...');
+      fs.mkdirSync(DOTFILES_DIR, { recursive: true });
+      for (const dir of ['skills', 'commands', 'agents']) {
+        const src = path.join(PACKAGE_ROOT, dir);
+        const dst = path.join(DOTFILES_DIR, dir);
+        if (fs.existsSync(src)) {
+          fs.mkdirSync(dst, { recursive: true });
+          try { execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' }); }
+          catch { execSync(`cp -r "${src}/." "${dst}/"`, { stdio: 'pipe' }); }
         }
       }
+      s.stop('Content copied.');
 
       const availableSkills = scanDir(SKILLS_DIR);
       if (availableSkills.length > 0) {
@@ -257,11 +223,9 @@ async function main() {
       fs.mkdirSync(SKILLS_DIR, { recursive: true });
       fs.mkdirSync(COMMANDS_DIR, { recursive: true });
       fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
-      if (isGlobal) {
-        execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
-        log.info(`Initialized git repository in ${shorten(DOTFILES_DIR)}`);
-      }
     }
+  } else if (!isSameDir) {
+    log.warn(`${shorten(DOTFILES_DIR)} already has content, skipping initialization.`);
   }
 
   // Ensure directories exist
@@ -392,6 +356,24 @@ async function main() {
   }
 
   if (resultLines.length) note(resultLines.join('\n'), 'Results');
+
+  // ── Optional: git init ──
+  const hasGit = fs.existsSync(path.join(DOTFILES_DIR, '.git'));
+  if (!hasGit) {
+    const wantGit = await confirm({ message: 'Set up as git repository?' });
+    if (wantGit && !isCancel(wantGit)) {
+      const repoUrl = await text({
+        message: 'Remote repository URL?',
+        placeholder: 'https://github.com/user/.dotfiles.git',
+      });
+      if (!isCancel(repoUrl) && repoUrl?.trim()) {
+        execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
+        execSync(`git remote add origin "${repoUrl.trim()}"`, { cwd: DOTFILES_DIR, stdio: 'pipe' });
+        log.info(`Git initialized with remote: ${repoUrl.trim()}`);
+      }
+    }
+  }
+
   outro('Installation complete!');
 }
 
