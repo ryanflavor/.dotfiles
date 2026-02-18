@@ -5,7 +5,9 @@ import {
   isCancel, spinner, note, log,
 } from '@clack/prompts';
 import { paginatedGroupMultiselect, styledMultiselect } from './lib/paginated-group-multiselect.mjs';
-import { execSync } from 'node:child_process';
+import { execSync, exec } from 'node:child_process';
+import { promisify } from 'node:util';
+const execAsync = promisify(exec);
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -232,7 +234,7 @@ async function main() {
       const s = spinner();
       s.start('Cloning repository...');
       try {
-        execSync(`gh repo clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
+        await execAsync(`gh repo clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`);
         s.stop('Repository cloned.');
       } catch (err) {
         s.stop('Clone failed.');
