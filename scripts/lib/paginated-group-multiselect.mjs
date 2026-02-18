@@ -16,19 +16,19 @@ function renderOption(option, isActive, selectedValues) {
     return `  ${pc.gray(SYM.UNSELECTED)} ${pc.strikethrough(pc.gray(label))}`;
   }
 
-  const cursor = isActive ? `${SYM.CURSOR} ` : '  ';
+  const prefix = isActive ? `${SYM.CURSOR} ` : '  ';
   const icon = isSelected
     ? pc.green(SYM.SELECTED)
     : isActive ? pc.cyan(SYM.UNSELECTED) : pc.dim(SYM.UNSELECTED);
   const text = isActive ? `${label}${hint}` : `${pc.dim(label)}${hint}`;
-  return `${cursor}${icon} ${text}`;
+  return `${prefix}${icon} ${text}`;
 }
 
 function paginate(options, cursor, maxItems, styleFn) {
   const total = options.length;
-  if (total === 0) return [];
+  if (total === 0) return { lines: [], footer: '' };
   if (total <= maxItems) {
-    return options.map((o, i) => styleFn(o, i === cursor));
+    return { lines: options.map((o, i) => styleFn(o, i === cursor)), footer: '' };
   }
   let start = Math.max(0, cursor - Math.floor(maxItems / 2));
   let end = Math.min(total, start + maxItems);
@@ -40,9 +40,10 @@ function paginate(options, cursor, maxItems, styleFn) {
   for (let i = start; i < end; i++) {
     lines.push(styleFn(options[i], i === cursor));
   }
-  if (above > 0) lines.unshift(pc.dim(`↑ ${above} more`));
-  if (below > 0) lines.push(pc.dim(`↓ ${below} more`));
-  return lines;
+  const parts = [];
+  if (above > 0) parts.push(`↑ ${above} more`);
+  if (below > 0) parts.push(`↓ ${below} more`);
+  return { lines, footer: parts.length ? pc.dim(parts.join('  ')) : '' };
 }
 
 function formatSelected(labels) {
@@ -135,12 +136,12 @@ export function paginatedGroupMultiselect(opts) {
 
           lines.push(B());
 
-          // Options with ↑N/↓N pagination
-          const optLines = paginate(
+          const { lines: optLines, footer } = paginate(
             this.filteredOptions, this.cursor, maxItems,
             (o, active) => renderOption(o, active, this.selectedValues),
           );
-          for (const l of optLines) lines.push(B(l));
+          for (const l of optLines) lines.push(`${bar(S_BAR)} ${l}`);
+          if (footer) lines.push(B(footer));
 
           // Footer: empty line → selected → bar end
           if (allLabels.length > 0) {
