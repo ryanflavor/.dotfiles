@@ -170,12 +170,16 @@ async function main() {
   const isSameDir = path.resolve(PACKAGE_ROOT) === path.resolve(DOTFILES_DIR);
 
   if (!isSameDir && needsInit(DOTFILES_DIR)) {
-    const wantPresets = hasPackageContent() && await confirm({
-      message: 'Install pre-made skills & commands from package?',
+    const initMode = await select({
+      message: 'How to set up dotfiles?',
+      options: [
+        { value: 'new', label: 'Create new', hint: 'Start with pre-made skills & commands' },
+        { value: 'import', label: 'Import existing', hint: 'Clone your git repository' },
+      ],
     });
-    if (isCancel(wantPresets)) { cancel('Cancelled.'); process.exit(0); }
+    if (isCancel(initMode)) { cancel('Cancelled.'); process.exit(0); }
 
-    if (wantPresets) {
+    if (initMode === 'new') {
       const s = spinner();
       s.start('Copying content from package...');
       fs.mkdirSync(DOTFILES_DIR, { recursive: true });
@@ -220,9 +224,21 @@ async function main() {
         }
       }
     } else {
-      fs.mkdirSync(SKILLS_DIR, { recursive: true });
-      fs.mkdirSync(COMMANDS_DIR, { recursive: true });
-      fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+      const repoUrl = await text({
+        message: 'Git repository URL?',
+        placeholder: 'https://github.com/user/.dotfiles.git',
+      });
+      if (isCancel(repoUrl)) { cancel('Cancelled.'); process.exit(0); }
+      const s = spinner();
+      s.start('Cloning repository...');
+      try {
+        execSync(`git clone "${repoUrl.trim()}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
+        s.stop('Repository cloned.');
+      } catch (err) {
+        s.stop('Clone failed.');
+        log.error(`git clone failed: ${err.message}`);
+        process.exit(1);
+      }
     }
   } else if (!isSameDir) {
     log.warn(`${shorten(DOTFILES_DIR)} already has content, skipping initialization.`);
@@ -369,9 +385,6 @@ async function main() {
       if (!isCancel(repoUrl) && repoUrl?.trim()) {
         execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
         execSync(`git remote add origin "${repoUrl.trim()}"`, { cwd: DOTFILES_DIR, stdio: 'pipe' });
-        execSync('git fetch origin', { cwd: DOTFILES_DIR, stdio: 'pipe' });
-        execSync('git reset origin/main', { cwd: DOTFILES_DIR, stdio: 'pipe' });
-        execSync('git branch -u origin/main', { cwd: DOTFILES_DIR, stdio: 'pipe' });
         log.info(`Git initialized with remote: ${repoUrl.trim()}`);
       }
     }
