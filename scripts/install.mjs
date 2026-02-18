@@ -340,14 +340,15 @@ async function main() {
       required: false,
       maxItems: 10,
     }),
-    commands: () => styledMultiselect({
+    commands: () => paginatedGroupMultiselect({
       message: 'Select command directories to link',
-      options: annotate(commandList, COMMANDS_DIR),
+      options: { Commands: annotate(commandList, COMMANDS_DIR) },
       initialValues: linkedValues(commandList, COMMANDS_DIR),
       required: false,
+      maxItems: 10,
     }),
     agents: () => styledMultiselect({
-      message: 'Select agent config files to link',
+      message: 'Select agent instructions to link',
       options: annotate(agentList, AGENTS_FILE),
       initialValues: linkedValues(agentList, AGENTS_FILE),
       required: false,
@@ -378,7 +379,7 @@ async function main() {
   }
   if (agents.length) {
     if (summaryLines.length) summaryLines.push('');
-    summaryLines.push(`Agent configs (${agents.length}):`);
+    summaryLines.push(`Agent instructions (${agents.length}):`);
     agents.forEach(a => summaryLines.push(`  → ${a}`));
   }
   summaryLines.push('');
