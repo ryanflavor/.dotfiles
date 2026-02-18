@@ -1,78 +1,60 @@
-export const UNIVERSAL_PATH = '~/.agents/skills';
-
-export const UNIVERSAL_AGENTS = {
-  'Universal (.agents/skills)': [
-    { label: 'Amp' },
-    { label: 'Codex' },
-    { label: 'Gemini CLI' },
-    { label: 'GitHub Copilot' },
-    { label: 'Kimi Code CLI' },
-    { label: 'OpenCode' },
-  ],
-};
-
-export const SKILL_GROUPS = {
-  'Other agents': [
-    { value: '~/.adal/skills', label: 'AdaL (.adal/skills)' },
-    { value: '~/.agent/skills', label: 'Antigravity (.agent/skills)' },
-    { value: '~/.augment/skills', label: 'Augment (.augment/skills)' },
-    { value: '~/.claude/skills', label: 'Claude Code (.claude/skills)' },
-    { value: '~/.cline/skills', label: 'Cline (.cline/skills)' },
-    { value: '~/.codebuddy/skills', label: 'CodeBuddy (.codebuddy/skills)' },
-    { value: '~/.codex/skills', label: 'Codex (.codex/skills)' },
-    { value: '~/.commandcode/skills', label: 'Command Code (.commandcode/skills)' },
-    { value: '~/.continue/skills', label: 'Continue (.continue/skills)' },
-    { value: '~/.crush/skills', label: 'Crush (.crush/skills)' },
-    { value: '~/.cursor/skills', label: 'Cursor (.cursor/skills)' },
-    { value: '~/.factory/skills', label: 'Droid (.factory/skills)' },
-    { value: '~/.gemini/antigravity/skills', label: 'Gemini CLI (.gemini/antigravity/skills)' },
-    { value: '~/.goose/skills', label: 'Goose (.goose/skills)' },
-    { value: '~/.iflow/skills', label: 'iFlow CLI (.iflow/skills)' },
-    { value: '~/.junie/skills', label: 'Junie (.junie/skills)' },
-    { value: '~/.kilocode/skills', label: 'Kilo Code (.kilocode/skills)' },
-    { value: '~/.kiro/skills', label: 'Kiro CLI (.kiro/skills)' },
-    { value: '~/.kode/skills', label: 'Kode (.kode/skills)' },
-    { value: '~/.mcpjam/skills', label: 'MCPJam (.mcpjam/skills)' },
-    { value: '~/.mux/skills', label: 'Mux (.mux/skills)' },
-    { value: '~/.neovate/skills', label: 'Neovate (.neovate/skills)' },
-    { value: '~/.openhands/skills', label: 'OpenHands (.openhands/skills)' },
-    { value: '~/skills', label: 'OpenClaw (skills)' },
-    { value: '~/.pi/skills', label: 'Pi (.pi/skills)' },
-    { value: '~/.pochi/skills', label: 'Pochi (.pochi/skills)' },
-    { value: '~/.qoder/skills', label: 'Qoder (.qoder/skills)' },
-    { value: '~/.qwen/skills', label: 'Qwen Code (.qwen/skills)' },
-    { value: '~/.roo/skills', label: 'Roo Code (.roo/skills)' },
-    { value: '~/.trae/skills', label: 'Trae (.trae/skills)' },
-    { value: '~/.vibe/skills', label: 'Mistral Vibe (.vibe/skills)' },
-    { value: '~/.windsurf/skills', label: 'Windsurf (.windsurf/skills)' },
-    { value: '~/.zencoder/skills', label: 'Zencoder (.zencoder/skills)' },
-  ],
-};
-
-export const COMMAND_LIST = [
-  { value: '~/.claude/commands', label: 'Claude Code (.claude/commands)' },
-  { value: '~/.codex/prompts', label: 'Codex (.codex/prompts)' },
-  { value: '~/.factory/commands', label: 'Droid (.factory/commands)' },
-  { value: '~/.gemini/antigravity/global_workflows', label: 'Gemini CLI (.gemini/global_workflows)' },
+export const UNIVERSAL_AGENTS = [
+  'Amp', 'Codex', 'Gemini CLI', 'GitHub Copilot', 'Kimi Code CLI', 'OpenCode',
 ];
 
-export const AGENT_LIST = [
-  { value: '~/.claude/CLAUDE.md', label: 'Claude Code (CLAUDE.md)' },
-  { value: '~/.codex/AGENTS.md', label: 'Codex (AGENTS.md)' },
-  { value: '~/.factory/AGENTS.md', label: 'Droid (AGENTS.md)' },
+export const UNIVERSAL = {
+  skills: '~/.agents/skills',
+  commands: '~/.agents/commands',
+};
+
+export const AGENTS = [
+  { name: 'AdaL',         skills: '~/.adal/skills',                    commands: '~/.adal/commands' },
+  { name: 'Antigravity',  skills: '~/.agent/skills',                   commands: '~/.agent/commands' },
+  { name: 'Augment',      skills: '~/.augment/skills',                 commands: '~/.augment/commands' },
+  { name: 'Claude Code',  skills: '~/.claude/skills',                  commands: '~/.claude/commands',                  instructions: '~/.claude/CLAUDE.md' },
+  { name: 'Cline',        skills: '~/.cline/skills',                   commands: '~/.cline/commands' },
+  { name: 'CodeBuddy',    skills: '~/.codebuddy/skills',               commands: '~/.codebuddy/commands' },
+  { name: 'Codex',        skills: '~/.codex/skills',                   commands: '~/.codex/prompts',                   instructions: '~/.codex/AGENTS.md' },
+  { name: 'Command Code', skills: '~/.commandcode/skills',             commands: '~/.commandcode/commands' },
+  { name: 'Continue',     skills: '~/.continue/skills',                commands: '~/.continue/commands' },
+  { name: 'Crush',        skills: '~/.crush/skills',                   commands: '~/.crush/commands' },
+  { name: 'Cursor',       skills: '~/.cursor/skills',                  commands: '~/.cursor/commands' },
+  { name: 'Droid',        skills: '~/.factory/skills',                 commands: '~/.factory/commands',                 instructions: '~/.factory/AGENTS.md' },
+  { name: 'Gemini CLI',   skills: '~/.gemini/antigravity/skills',      commands: '~/.gemini/antigravity/global_workflows' },
+  { name: 'Goose',        skills: '~/.goose/skills',                   commands: '~/.goose/commands' },
+  { name: 'iFlow CLI',    skills: '~/.iflow/skills',                   commands: '~/.iflow/commands' },
+  { name: 'Junie',        skills: '~/.junie/skills',                   commands: '~/.junie/commands' },
+  { name: 'Kilo Code',    skills: '~/.kilocode/skills',                commands: '~/.kilocode/commands' },
+  { name: 'Kiro CLI',     skills: '~/.kiro/skills',                    commands: '~/.kiro/commands' },
+  { name: 'Kode',         skills: '~/.kode/skills',                    commands: '~/.kode/commands' },
+  { name: 'MCPJam',       skills: '~/.mcpjam/skills',                  commands: '~/.mcpjam/commands' },
+  { name: 'Mistral Vibe', skills: '~/.vibe/skills',                    commands: '~/.vibe/commands' },
+  { name: 'Mux',          skills: '~/.mux/skills',                     commands: '~/.mux/commands' },
+  { name: 'Neovate',      skills: '~/.neovate/skills',                 commands: '~/.neovate/commands' },
+  { name: 'OpenClaw',     skills: '~/skills',                          commands: '~/commands' },
+  { name: 'OpenHands',    skills: '~/.openhands/skills',               commands: '~/.openhands/commands' },
+  { name: 'Pi',           skills: '~/.pi/skills',                      commands: '~/.pi/commands' },
+  { name: 'Pochi',        skills: '~/.pochi/skills',                   commands: '~/.pochi/commands' },
+  { name: 'Qoder',        skills: '~/.qoder/skills',                   commands: '~/.qoder/commands' },
+  { name: 'Qwen Code',    skills: '~/.qwen/skills',                    commands: '~/.qwen/commands' },
+  { name: 'Roo Code',     skills: '~/.roo/skills',                     commands: '~/.roo/commands' },
+  { name: 'Trae',         skills: '~/.trae/skills',                    commands: '~/.trae/commands' },
+  { name: 'Windsurf',     skills: '~/.windsurf/skills',                commands: '~/.windsurf/commands' },
+  { name: 'Zencoder',     skills: '~/.zencoder/skills',                commands: '~/.zencoder/commands' },
 ];
 
 export function allSkillPaths() {
-  return [
-    UNIVERSAL_PATH,
-    ...SKILL_GROUPS['Other agents'].map(o => o.value),
-  ];
+  return [UNIVERSAL.skills, ...AGENTS.map(a => a.skills)];
 }
 
 export function allCommandPaths() {
-  return COMMAND_LIST.map(o => o.value);
+  return [UNIVERSAL.commands, ...AGENTS.map(a => a.commands)];
 }
 
 export function allAgentPaths() {
-  return AGENT_LIST.map(o => o.value);
+  return AGENTS.filter(a => a.instructions).map(a => a.instructions);
+}
+
+export function allPaths() {
+  return [...allSkillPaths(), ...allCommandPaths(), ...allAgentPaths()];
 }

@@ -2,8 +2,7 @@
 
 import {
   intro, outro, cancel, confirm, text, select,
-  group, isCancel,
-  spinner, note, log,
+  isCancel, spinner, note, log,
 } from '@clack/prompts';
 import { paginatedGroupMultiselect, styledMultiselect } from './lib/paginated-group-multiselect.mjs';
 import { execSync } from 'node:child_process';
@@ -17,12 +16,12 @@ const shorten = (s) => s.replace(HOME, '~');
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
 const PACKAGE_ROOT = path.resolve(SCRIPT_DIR, '..');
 
-import {
-  UNIVERSAL_PATH, UNIVERSAL_AGENTS, SKILL_GROUPS, COMMAND_LIST, AGENT_LIST,
-} from './lib/catalog.mjs';
+import { UNIVERSAL_AGENTS, UNIVERSAL, AGENTS } from './lib/catalog.mjs';
 
 const REPO_URL = 'https://github.com/notdp/.dotfiles.git';
 const IGNORE_DIRS = new Set(['.system', '.git', '.github', '.ruff_cache', 'node_modules']);
+
+// ── Path helpers ─────────────────────────────────────────────
 
 function toProjectPath(p) {
   if (p === '~') return '.';
@@ -30,20 +29,10 @@ function toProjectPath(p) {
   return p;
 }
 
-function projectCatalog(items) {
-  return items.map(o => {
-    const projPath = toProjectPath(o.value);
-    const name = o.label.replace(/\s*\(.*\)$/, '');
-    return { ...o, value: projPath, label: `${name} (${projPath})` };
-  });
-}
-
-function projectGroups(groups) {
-  const out = {};
-  for (const [key, items] of Object.entries(groups)) {
-    out[key] = projectCatalog(items);
-  }
-  return out;
+function agentLabel(agent, isGlobal) {
+  const base = agent.skills.replace(/\/skills$/, '').replace(/^~\//, '');
+  const display = isGlobal ? base : toProjectPath(base);
+  return `${agent.name} (${display})`;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -102,32 +91,6 @@ function ensureFrontMatter(dir) {
     fs.writeFileSync(fp, `---\ndescription:\n---\n\n${content}`);
   }
 }
-
-function linkedValues(catalog, target) {
-  const items = Array.isArray(catalog)
-    ? catalog
-    : Object.values(catalog).flat();
-  return items.filter(o => isLinkedTo(o.value, target)).map(o => o.value);
-}
-
-function annotate(items, target) {
-  return items.map(o => ({
-    ...o,
-    hint: isLinkedTo(o.value, target) ? 'linked' : o.hint,
-  }));
-}
-
-function annotateGroups(groups, target) {
-  const out = {};
-  for (const [key, items] of Object.entries(groups)) {
-    out[key] = annotate(items, target);
-  }
-  return out;
-}
-
-// ── Catalog ──────────────────────────────────────────────────
-
-
 
 // ── Initialization helpers ───────────────────────────────────
 
@@ -307,14 +270,15 @@ async function main() {
   fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
 
   if (isGlobal && !fs.existsSync(AGENTS_FILE)) {
-    log.info('First install — merging existing agent config files...');
+    log.info('First install — merging existing agent instruction files...');
     let content = '';
-    for (const opt of AGENT_LIST) {
-      const file = expand(opt.value);
+    for (const a of AGENTS) {
+      if (!a.instructions) continue;
+      const file = expand(a.instructions);
       try {
         const stat = fs.lstatSync(file);
         if (stat.isFile() && !stat.isSymbolicLink()) {
-          content += `\n# === from ${opt.value} ===\n`;
+          content += `\n# === from ${a.instructions} ===\n`;
           content += fs.readFileSync(file, 'utf-8');
         }
       } catch {}
@@ -322,66 +286,61 @@ async function main() {
     fs.writeFileSync(AGENTS_FILE, content);
   }
 
-  // ── Step 5: Select agent paths ──
-  const projUniversalAgents = isGlobal ? UNIVERSAL_AGENTS : {
-    [`Universal (${toProjectPath(UNIVERSAL_PATH)})`]: UNIVERSAL_AGENTS[Object.keys(UNIVERSAL_AGENTS)[0]],
+  // ── Step 5: Select agents ──
+  const universalLabel = isGlobal ? '.agents' : toProjectPath('.agents');
+  const lockedGroups = {
+    [`Universal (${universalLabel})`]: UNIVERSAL_AGENTS.map(name => ({ label: name })),
   };
-  const skillGroups = isGlobal ? SKILL_GROUPS : projectGroups(SKILL_GROUPS);
-  const commandList = isGlobal ? COMMAND_LIST : projectCatalog(COMMAND_LIST);
-  const agentList = isGlobal ? AGENT_LIST : projectCatalog(AGENT_LIST);
-  const universalPath = isGlobal ? UNIVERSAL_PATH : toProjectPath(UNIVERSAL_PATH);
 
-  const result = await group({
-    skills: () => paginatedGroupMultiselect({
-      message: 'Select skill directories to link',
-      options: annotateGroups(skillGroups, SKILLS_DIR),
-      lockedGroups: projUniversalAgents,
-      initialValues: linkedValues(skillGroups, SKILLS_DIR),
-      required: false,
-      maxItems: 10,
-    }),
-    commands: () => paginatedGroupMultiselect({
-      message: 'Select command directories to link',
-      options: { Commands: annotate(commandList, COMMANDS_DIR) },
-      initialValues: linkedValues(commandList, COMMANDS_DIR),
-      required: false,
-      maxItems: 10,
-    }),
-    agents: () => styledMultiselect({
-      message: 'Select agent instructions to link',
-      options: annotate(agentList, AGENTS_FILE),
-      initialValues: linkedValues(agentList, AGENTS_FILE),
-      required: false,
-    }),
-  }, {
-    onCancel: () => { cancel('Cancelled.'); process.exit(0); },
+  const agentOptions = AGENTS.map(a => ({
+    value: a.name,
+    label: agentLabel(a, isGlobal),
+  }));
+
+  function isAgentLinked(agent) {
+    return isLinkedTo(agent.skills, SKILLS_DIR) || isLinkedTo(agent.commands, COMMANDS_DIR);
+  }
+
+  const selectedAgents = await paginatedGroupMultiselect({
+    message: 'Select agents to configure',
+    options: { 'Other agents': agentOptions },
+    lockedGroups,
+    initialValues: AGENTS.filter(isAgentLinked).map(a => a.name),
+    required: false,
+    maxItems: 10,
   });
+  if (isCancel(selectedAgents)) { cancel('Cancelled.'); process.exit(0); }
 
-  const skills = result.skills || [];
-  const commands = result.commands || [];
-  const agents = result.agents || [];
-  const allSkills = [universalPath, ...skills];
+  const chosen = new Set(selectedAgents || []);
+  const chosenAgents = AGENTS.filter(a => chosen.has(a.name));
 
-  const total = allSkills.length + commands.length + agents.length;
+  // Collect all paths to install
+  const skillPaths = [
+    isGlobal ? UNIVERSAL.skills : toProjectPath(UNIVERSAL.skills),
+    ...chosenAgents.map(a => isGlobal ? a.skills : toProjectPath(a.skills)),
+  ];
+  const commandPaths = [
+    isGlobal ? UNIVERSAL.commands : toProjectPath(UNIVERSAL.commands),
+    ...chosenAgents.map(a => isGlobal ? a.commands : toProjectPath(a.commands)),
+  ];
+  const instructionPaths = chosenAgents
+    .filter(a => a.instructions)
+    .map(a => isGlobal ? a.instructions : toProjectPath(a.instructions));
+
+  const total = skillPaths.length + commandPaths.length + instructionPaths.length;
   if (total === 0) { outro('Nothing selected.'); return; }
 
   // ── Summary ──
   const methodLabel = method === 'symlink' ? 'Symlink' : 'Copy';
   const summaryLines = [];
-  if (allSkills.length) {
-    summaryLines.push(`Skills (${allSkills.length}):`);
-    allSkills.forEach(s => summaryLines.push(`  → ${s}`));
-  }
-  if (commands.length) {
-    if (summaryLines.length) summaryLines.push('');
-    summaryLines.push(`Commands (${commands.length}):`);
-    commands.forEach(c => summaryLines.push(`  → ${c}`));
-  }
-  if (agents.length) {
-    if (summaryLines.length) summaryLines.push('');
-    summaryLines.push(`Agent instructions (${agents.length}):`);
-    agents.forEach(a => summaryLines.push(`  → ${a}`));
-  }
+
+  const agentNames = [
+    ...UNIVERSAL_AGENTS,
+    ...chosenAgents.map(a => a.name),
+  ];
+  summaryLines.push(`Agents (${agentNames.length}): ${agentNames.join(', ')}`);
+  summaryLines.push('');
+  summaryLines.push(`Links: ${skillPaths.length} skills + ${commandPaths.length} commands + ${instructionPaths.length} instructions`);
   summaryLines.push('');
   summaryLines.push(`Scope: ${isGlobal ? 'Global' : 'Project'}`);
   summaryLines.push(`Method: ${methodLabel}`);
@@ -411,9 +370,9 @@ async function main() {
     }
   }
 
-  doInstall(allSkills, SKILLS_DIR);
-  doInstall(commands, COMMANDS_DIR);
-  doInstall(agents, AGENTS_FILE);
+  doInstall(skillPaths, SKILLS_DIR);
+  doInstall(commandPaths, COMMANDS_DIR);
+  doInstall(instructionPaths, AGENTS_FILE);
   ensureFrontMatter(COMMANDS_DIR);
 
   s.stop('Done!');
