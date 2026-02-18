@@ -6,6 +6,7 @@
     "~/.gemini/antigravity/global_workflows"
   ],
   "skills": [
+    "~/.agents/skills",
     "~/.claude/skills",
     "~/.codex/skills",
     "~/.factory/skills",
