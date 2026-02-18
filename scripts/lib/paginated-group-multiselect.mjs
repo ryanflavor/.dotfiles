@@ -20,7 +20,7 @@ function renderOption(option, isActive, selectedValues) {
   const icon = isSelected
     ? pc.green(SYM.SELECTED)
     : isActive ? pc.cyan(SYM.UNSELECTED) : pc.dim(SYM.UNSELECTED);
-  const text = isActive ? `${label}${hint}` : `${pc.dim(label)}${hint}`;
+  const text = isActive ? `${pc.underline(label)}${hint}` : `${pc.dim(label)}${hint}`;
   return `${prefix}${icon} ${text}`;
 }
 
