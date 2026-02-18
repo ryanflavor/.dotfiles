@@ -49,7 +49,7 @@ function checkSection(paths, expectedTarget) {
   return paths.map(p => {
     const result = checkLink(p, expectedTarget);
     return { path: p, ...result };
-  });
+  }).filter(r => r.status !== 'missing');
 }
 
 intro('.dotfiles status');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import {
-  intro, outro, cancel, confirm, text,
+  intro, outro, cancel, confirm, text, select,
   group, isCancel,
   spinner, note, log,
 } from '@clack/prompts';
@@ -14,6 +14,8 @@ import path from 'node:path';
 const HOME = os.homedir();
 const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
 const shorten = (s) => s.replace(HOME, '~');
+const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
+const PACKAGE_ROOT = path.resolve(SCRIPT_DIR, '..');
 
 import {
   UNIVERSAL_PATH, UNIVERSAL_AGENTS, SKILL_GROUPS, COMMAND_LIST, AGENT_LIST,
@@ -21,6 +23,28 @@ import {
 
 const REPO_URL = 'https://github.com/notdp/.dotfiles.git';
 const IGNORE_DIRS = new Set(['.system', '.git', '.github', '.ruff_cache', 'node_modules']);
+
+function toProjectPath(p) {
+  if (p === '~') return '.';
+  if (p.startsWith('~/')) return p.slice(2);
+  return p;
+}
+
+function projectCatalog(items) {
+  return items.map(o => {
+    const projPath = toProjectPath(o.value);
+    const name = o.label.replace(/\s*\(.*\)$/, '');
+    return { ...o, value: projPath, label: `${name} (${projPath})` };
+  });
+}
+
+function projectGroups(groups) {
+  const out = {};
+  for (const [key, items] of Object.entries(groups)) {
+    out[key] = projectCatalog(items);
+  }
+  return out;
+}
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -51,6 +75,21 @@ function createLink(linkPath, target) {
 
   fs.mkdirSync(path.dirname(full), { recursive: true });
   fs.symlinkSync(target, full);
+  return 'created';
+}
+
+function createCopy(destPath, source) {
+  const full = expand(destPath);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+
+  const srcStat = fs.statSync(source);
+  if (srcStat.isDirectory()) {
+    fs.mkdirSync(full, { recursive: true });
+    try { execSync(`rsync -a "${source}/" "${full}/"`, { stdio: 'pipe' }); }
+    catch { execSync(`cp -r "${source}/." "${full}/"`, { stdio: 'pipe' }); }
+  } else {
+    fs.copyFileSync(source, full);
+  }
   return 'created';
 }
 
@@ -115,62 +154,113 @@ function scanCommands(dir) {
     .map(f => f.replace(/\.md$/, ''));
 }
 
+function hasPackageContent() {
+  const s = path.join(PACKAGE_ROOT, 'skills');
+  const c = path.join(PACKAGE_ROOT, 'commands');
+  return (fs.existsSync(s) && scanDir(s).length > 0) ||
+    (fs.existsSync(c) && scanCommands(c).length > 0);
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
   intro('.dotfiles installer');
 
-  // ── Step 1: Dotfiles directory location ──
+  // ── Step 1: Installation scope ──
+  const scope = await select({
+    message: 'Installation scope',
+    options: [
+      { value: 'global', label: 'Global', hint: 'Install in home directory (available across all projects)' },
+      { value: 'project', label: 'Project', hint: 'Install in current directory (committed with your project)' },
+    ],
+  });
+  if (isCancel(scope)) { cancel('Cancelled.'); process.exit(0); }
+
+  const isGlobal = scope === 'global';
+
+  // ── Step 2: Installation method ──
+  const method = await select({
+    message: 'Installation method',
+    options: [
+      { value: 'symlink', label: 'Symlink (Recommended)', hint: 'Single source of truth, easy updates' },
+      { value: 'copy', label: 'Copy to all agents', hint: 'Independent copies for each agent' },
+    ],
+  });
+  if (isCancel(method)) { cancel('Cancelled.'); process.exit(0); }
+
+  // ── Step 3: Dotfiles directory ──
   const dirInput = await text({
     message: 'Dotfiles directory?',
-    placeholder: '~/.dotfiles',
-    defaultValue: '~/.dotfiles',
+    placeholder: isGlobal ? '~/.dotfiles' : '.agents',
+    defaultValue: isGlobal ? '~/.dotfiles' : '.agents',
   });
   if (isCancel(dirInput)) { cancel('Cancelled.'); process.exit(0); }
 
-  const DOTFILES_DIR = expand(dirInput.trim());
+  const DOTFILES_DIR = isGlobal
+    ? expand(dirInput.trim())
+    : path.resolve(dirInput.trim());
+
   const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
   const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
   const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
-  // ── Step 2: Initialize if needed ──
-  if (needsInit(DOTFILES_DIR)) {
+  // ── Step 4: Initialize if needed ──
+  const isSameDir = path.resolve(PACKAGE_ROOT) === path.resolve(DOTFILES_DIR);
+
+  if (!isSameDir && needsInit(DOTFILES_DIR)) {
+    const usePackage = hasPackageContent();
+    const sourceLabel = usePackage ? 'package' : 'GitHub';
+
     const wantPresets = await confirm({
-      message: 'Install pre-made skills & commands from GitHub?',
+      message: `Install pre-made skills & commands from ${sourceLabel}?`,
     });
     if (isCancel(wantPresets)) { cancel('Cancelled.'); process.exit(0); }
 
     if (wantPresets) {
       const s = spinner();
-      s.start('Cloning repository...');
-      try {
-        if (fs.existsSync(DOTFILES_DIR)) {
-          // Clone to temp, then copy content directories over
-          const tmp = path.join(os.tmpdir(), `dotfiles-${Date.now()}`);
-          execSync(`git clone --depth 1 "${REPO_URL}" "${tmp}"`, { stdio: 'pipe' });
-          for (const dir of ['skills', 'commands', 'agents']) {
-            const src = path.join(tmp, dir);
-            const dst = path.join(DOTFILES_DIR, dir);
-            if (fs.existsSync(src)) {
-              fs.mkdirSync(dst, { recursive: true });
-              execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' });
-            }
+
+      if (usePackage) {
+        s.start('Copying content from package...');
+        fs.mkdirSync(DOTFILES_DIR, { recursive: true });
+        for (const dir of ['skills', 'commands', 'agents']) {
+          const src = path.join(PACKAGE_ROOT, dir);
+          const dst = path.join(DOTFILES_DIR, dir);
+          if (fs.existsSync(src)) {
+            fs.mkdirSync(dst, { recursive: true });
+            try { execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' }); }
+            catch { execSync(`cp -r "${src}/." "${dst}/"`, { stdio: 'pipe' }); }
           }
-          fs.rmSync(tmp, { recursive: true, force: true });
-        } else {
-          execSync(`git clone --depth 1 "${REPO_URL}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
         }
-        s.stop('Repository cloned.');
-      } catch (err) {
-        s.stop('Clone failed.');
-        log.warn(`git clone failed: ${err.message}`);
-        log.info('Continuing with empty directories...');
-        fs.mkdirSync(SKILLS_DIR, { recursive: true });
-        fs.mkdirSync(COMMANDS_DIR, { recursive: true });
-        fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+        s.stop('Content copied.');
+      } else {
+        s.start('Cloning repository...');
+        try {
+          if (fs.existsSync(DOTFILES_DIR)) {
+            const tmp = path.join(os.tmpdir(), `dotfiles-${Date.now()}`);
+            execSync(`git clone --depth 1 "${REPO_URL}" "${tmp}"`, { stdio: 'pipe' });
+            for (const dir of ['skills', 'commands', 'agents']) {
+              const src = path.join(tmp, dir);
+              const dst = path.join(DOTFILES_DIR, dir);
+              if (fs.existsSync(src)) {
+                fs.mkdirSync(dst, { recursive: true });
+                execSync(`rsync -a --ignore-existing "${src}/" "${dst}/"`, { stdio: 'pipe' });
+              }
+            }
+            fs.rmSync(tmp, { recursive: true, force: true });
+          } else {
+            execSync(`git clone --depth 1 "${REPO_URL}" "${DOTFILES_DIR}"`, { stdio: 'pipe' });
+          }
+          s.stop('Repository cloned.');
+        } catch (err) {
+          s.stop('Clone failed.');
+          log.warn(`git clone failed: ${err.message}`);
+          log.info('Continuing with empty directories...');
+          fs.mkdirSync(SKILLS_DIR, { recursive: true });
+          fs.mkdirSync(COMMANDS_DIR, { recursive: true });
+          fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+        }
       }
 
-      // Let user pick which skills to keep
       const availableSkills = scanDir(SKILLS_DIR);
       if (availableSkills.length > 0) {
         const selectedSkills = await styledMultiselect({
@@ -180,16 +270,12 @@ async function main() {
           required: false,
         });
         if (isCancel(selectedSkills)) { cancel('Cancelled.'); process.exit(0); }
-
         const keepSkills = new Set(selectedSkills || []);
         for (const s of availableSkills) {
-          if (!keepSkills.has(s)) {
-            fs.rmSync(path.join(SKILLS_DIR, s), { recursive: true, force: true });
-          }
+          if (!keepSkills.has(s)) fs.rmSync(path.join(SKILLS_DIR, s), { recursive: true, force: true });
         }
       }
 
-      // Let user pick which commands to keep
       const availableCommands = scanCommands(COMMANDS_DIR);
       if (availableCommands.length > 0) {
         const selectedCommands = await styledMultiselect({
@@ -199,18 +285,19 @@ async function main() {
           required: false,
         });
         if (isCancel(selectedCommands)) { cancel('Cancelled.'); process.exit(0); }
-
         const keepCommands = new Set((selectedCommands || []).map(c => `${c}.md`));
         for (const f of fs.readdirSync(COMMANDS_DIR)) {
-          if (f.endsWith('.md') && f !== '.gitkeep' && !keepCommands.has(f)) {
-            fs.unlinkSync(path.join(COMMANDS_DIR, f));
-          }
+          if (f.endsWith('.md') && f !== '.gitkeep' && !keepCommands.has(f)) fs.unlinkSync(path.join(COMMANDS_DIR, f));
         }
       }
     } else {
       fs.mkdirSync(SKILLS_DIR, { recursive: true });
       fs.mkdirSync(COMMANDS_DIR, { recursive: true });
       fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+      if (isGlobal) {
+        execSync('git init', { cwd: DOTFILES_DIR, stdio: 'pipe' });
+        log.info(`Initialized git repository in ${shorten(DOTFILES_DIR)}`);
+      }
     }
   }
 
@@ -219,7 +306,7 @@ async function main() {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
   fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
 
-  if (!fs.existsSync(AGENTS_FILE)) {
+  if (isGlobal && !fs.existsSync(AGENTS_FILE)) {
     log.info('First install — merging existing agent config files...');
     let content = '';
     for (const opt of AGENT_LIST) {
@@ -235,26 +322,34 @@ async function main() {
     fs.writeFileSync(AGENTS_FILE, content);
   }
 
-  // ── Step 3+: Select agent paths to link ──
+  // ── Step 5: Select agent paths ──
+  const projUniversalAgents = isGlobal ? UNIVERSAL_AGENTS : {
+    [`Universal (${toProjectPath(UNIVERSAL_PATH)})`]: UNIVERSAL_AGENTS[Object.keys(UNIVERSAL_AGENTS)[0]],
+  };
+  const skillGroups = isGlobal ? SKILL_GROUPS : projectGroups(SKILL_GROUPS);
+  const commandList = isGlobal ? COMMAND_LIST : projectCatalog(COMMAND_LIST);
+  const agentList = isGlobal ? AGENT_LIST : projectCatalog(AGENT_LIST);
+  const universalPath = isGlobal ? UNIVERSAL_PATH : toProjectPath(UNIVERSAL_PATH);
+
   const result = await group({
     skills: () => paginatedGroupMultiselect({
       message: 'Select skill directories to link',
-      options: annotateGroups(SKILL_GROUPS, SKILLS_DIR),
-      lockedGroups: UNIVERSAL_AGENTS,
-      initialValues: linkedValues(SKILL_GROUPS, SKILLS_DIR),
+      options: annotateGroups(skillGroups, SKILLS_DIR),
+      lockedGroups: projUniversalAgents,
+      initialValues: linkedValues(skillGroups, SKILLS_DIR),
       required: false,
       maxItems: 12,
     }),
     commands: () => styledMultiselect({
       message: 'Select command directories to link',
-      options: annotate(COMMAND_LIST, COMMANDS_DIR),
-      initialValues: linkedValues(COMMAND_LIST, COMMANDS_DIR),
+      options: annotate(commandList, COMMANDS_DIR),
+      initialValues: linkedValues(commandList, COMMANDS_DIR),
       required: false,
     }),
     agents: () => styledMultiselect({
       message: 'Select agent config files to link',
-      options: annotate(AGENT_LIST, AGENTS_FILE),
-      initialValues: linkedValues(AGENT_LIST, AGENTS_FILE),
+      options: annotate(agentList, AGENTS_FILE),
+      initialValues: linkedValues(agentList, AGENTS_FILE),
       required: false,
     }),
   }, {
@@ -264,19 +359,14 @@ async function main() {
   const skills = result.skills || [];
   const commands = result.commands || [];
   const agents = result.agents || [];
-
-  // Universal is always included
-  const allSkills = [UNIVERSAL_PATH, ...skills];
+  const allSkills = [universalPath, ...skills];
 
   const total = allSkills.length + commands.length + agents.length;
-  if (total === 0) {
-    outro('Nothing selected.');
-    return;
-  }
+  if (total === 0) { outro('Nothing selected.'); return; }
 
   // ── Summary ──
+  const methodLabel = method === 'symlink' ? 'Symlink' : 'Copy';
   const summaryLines = [];
-  const fmtPath = (p) => p.replace(os.homedir(), '~');
   if (allSkills.length) {
     summaryLines.push(`Skills (${allSkills.length}):`);
     allSkills.forEach(s => summaryLines.push(`  → ${s}`));
@@ -292,26 +382,27 @@ async function main() {
     agents.forEach(a => summaryLines.push(`  → ${a}`));
   }
   summaryLines.push('');
-  summaryLines.push(`Target: ${fmtPath(DOTFILES_DIR)}`);
+  summaryLines.push(`Scope: ${isGlobal ? 'Global' : 'Project'}`);
+  summaryLines.push(`Method: ${methodLabel}`);
+  summaryLines.push(`Source: ${shorten(DOTFILES_DIR)}`);
 
   note(summaryLines.join('\n'), 'Installation Summary');
 
   const proceed = await confirm({ message: 'Proceed with installation?' });
-  if (!proceed || typeof proceed === 'symbol') {
-    cancel('Cancelled.');
-    process.exit(0);
-  }
+  if (!proceed || typeof proceed === 'symbol') { cancel('Cancelled.'); process.exit(0); }
 
   // ── Execute ──
   const s = spinner();
-  s.start('Creating symlinks...');
+  s.start(method === 'symlink' ? 'Creating symlinks...' : 'Copying files...');
 
   const stats = { created: 0, exists: 0, errors: [] };
 
-  function doLink(items, target) {
+  function doInstall(items, target) {
     for (const item of items) {
       try {
-        const r = createLink(item, target);
+        const r = method === 'symlink'
+          ? createLink(item, target)
+          : createCopy(item, target);
         stats[r === 'created' ? 'created' : 'exists']++;
       } catch (err) {
         stats.errors.push(`${item}: ${err.message}`);
@@ -319,16 +410,16 @@ async function main() {
     }
   }
 
-  doLink(allSkills, SKILLS_DIR);
-  doLink(commands, COMMANDS_DIR);
-  doLink(agents, AGENTS_FILE);
+  doInstall(allSkills, SKILLS_DIR);
+  doInstall(commands, COMMANDS_DIR);
+  doInstall(agents, AGENTS_FILE);
   ensureFrontMatter(COMMANDS_DIR);
 
   s.stop('Done!');
 
-  // ── Results ──
   const resultLines = [];
-  if (stats.created) resultLines.push(`✓ ${stats.created} new symlink(s) created`);
+  const verb = method === 'symlink' ? 'symlink(s)' : 'copie(s)';
+  if (stats.created) resultLines.push(`✓ ${stats.created} new ${verb} created`);
   if (stats.exists) resultLines.push(`✓ ${stats.exists} already linked`);
   if (stats.errors.length) {
     resultLines.push(`✗ ${stats.errors.length} error(s):`);

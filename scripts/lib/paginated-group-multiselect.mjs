@@ -145,7 +145,7 @@ export function paginatedGroupMultiselect(opts) {
           // Footer: empty line → selected → bar end
           if (allLabels.length > 0) {
             lines.push(B());
-            lines.push(B(pc.dim(`Selected: ${formatSelected(allLabels)}`)));
+            lines.push(B(pc.green('Selected: ') + formatSelected(allLabels)));
           }
 
           lines.push(`${bar(S_BAR_END)}`);
@@ -201,9 +201,10 @@ export function styledMultiselect(opts) {
         }
         default: {
           const bar = pc.cyan(S_BAR);
+          const kbd = pc.dim(`↑↓ move, space select, enter confirm`);
           const lines = this.options.map((o, i) =>
             renderOption(o, i === this.cursor, selected));
-          return `${title}${bar}  ${lines.join(`\n${bar}  `)}\n${pc.cyan(S_BAR_END)}\n`;
+          return `${title}${bar}  ${kbd}\n${bar}\n${bar}  ${lines.join(`\n${bar}  `)}\n${pc.cyan(S_BAR_END)}\n`;
         }
       }
     },
