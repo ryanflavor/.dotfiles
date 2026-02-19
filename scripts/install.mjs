@@ -184,82 +184,90 @@ async function main() {
   // ── Step 4: Initialize if needed ──
   const isSameDir = path.resolve(PACKAGE_ROOT) === path.resolve(DOTFILES_DIR);
 
+  async function copyFromPackage() {
+    const s = spinner();
+    s.start('Copying content from package...');
+    const existed = fs.existsSync(DOTFILES_DIR);
+    fs.mkdirSync(DOTFILES_DIR, { recursive: true });
+    if (!existed) createdDir = DOTFILES_DIR;
+    for (const dir of ['skills', 'commands', 'agents']) {
+      const src = path.join(PACKAGE_ROOT, dir);
+      const dst = path.join(DOTFILES_DIR, dir);
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(dst, { recursive: true });
+        try { execFileSync('rsync', ['-a', '--ignore-existing', `${src}/`, `${dst}/`], { stdio: 'pipe' }); }
+        catch { execFileSync('cp', ['-r', `${src}/.`, `${dst}/`], { stdio: 'pipe' }); }
+      }
+    }
+    s.stop('Content copied.');
+
+    const availableSkills = scanDir(SKILLS_DIR);
+    if (availableSkills.length > 0) {
+      const selectedSkills = await styledMultiselect({
+        message: 'Select skills to install',
+        options: availableSkills.map(s => ({ value: s, label: s })),
+        initialValues: availableSkills,
+        required: false,
+      });
+      if (isCancel(selectedSkills)) bail();
+      const keepSkills = new Set(selectedSkills || []);
+      for (const s of availableSkills) {
+        if (!keepSkills.has(s)) fs.rmSync(path.join(SKILLS_DIR, s), { recursive: true, force: true });
+      }
+    }
+
+    const availableCommands = scanCommands(COMMANDS_DIR);
+    if (availableCommands.length > 0) {
+      const selectedCommands = await styledMultiselect({
+        message: 'Select commands to install',
+        options: availableCommands.map(c => ({ value: c, label: c })),
+        initialValues: availableCommands,
+        required: false,
+      });
+      if (isCancel(selectedCommands)) bail();
+      const keepCommands = new Set((selectedCommands || []).map(c => `${c}.md`));
+      for (const f of fs.readdirSync(COMMANDS_DIR)) {
+        if (f.endsWith('.md') && f !== '.gitkeep' && !keepCommands.has(f)) fs.unlinkSync(path.join(COMMANDS_DIR, f));
+      }
+    }
+  }
+
   if (!isSameDir && needsInit(DOTFILES_DIR)) {
-    const initMode = await select({
-      message: 'How to set up dotfiles?',
-      options: [
-        { value: 'new', label: 'Create new', hint: 'Start with pre-made skills & commands' },
-        { value: 'import', label: 'Import existing', hint: 'Clone your git repository' },
-      ],
-    });
-    if (isCancel(initMode)) bail();
+    if (isGlobal) {
+      const initMode = await select({
+        message: 'How to set up dotfiles?',
+        options: [
+          { value: 'new', label: 'Create new', hint: 'Start with pre-made skills & commands' },
+          { value: 'import', label: 'Import existing', hint: 'Clone your git repository' },
+        ],
+      });
+      if (isCancel(initMode)) bail();
 
-    if (initMode === 'new') {
-      const s = spinner();
-      s.start('Copying content from package...');
-      const existed = fs.existsSync(DOTFILES_DIR);
-      fs.mkdirSync(DOTFILES_DIR, { recursive: true });
-      if (!existed) createdDir = DOTFILES_DIR;
-      for (const dir of ['skills', 'commands', 'agents']) {
-        const src = path.join(PACKAGE_ROOT, dir);
-        const dst = path.join(DOTFILES_DIR, dir);
-        if (fs.existsSync(src)) {
-          fs.mkdirSync(dst, { recursive: true });
-          try { execFileSync('rsync', ['-a', '--ignore-existing', `${src}/`, `${dst}/`], { stdio: 'pipe' }); }
-          catch { execFileSync('cp', ['-r', `${src}/.`, `${dst}/`], { stdio: 'pipe' }); }
-        }
-      }
-      s.stop('Content copied.');
-
-      const availableSkills = scanDir(SKILLS_DIR);
-      if (availableSkills.length > 0) {
-        const selectedSkills = await styledMultiselect({
-          message: 'Select skills to install',
-          options: availableSkills.map(s => ({ value: s, label: s })),
-          initialValues: availableSkills,
-          required: false,
+      if (initMode === 'new') {
+        await copyFromPackage();
+      } else {
+        const repoUrl = await text({
+          message: 'Git repository URL?',
+          placeholder: 'user/.dotfiles',
         });
-        if (isCancel(selectedSkills)) bail();
-        const keepSkills = new Set(selectedSkills || []);
-        for (const s of availableSkills) {
-          if (!keepSkills.has(s)) fs.rmSync(path.join(SKILLS_DIR, s), { recursive: true, force: true });
-        }
-      }
-
-      const availableCommands = scanCommands(COMMANDS_DIR);
-      if (availableCommands.length > 0) {
-        const selectedCommands = await styledMultiselect({
-          message: 'Select commands to install',
-          options: availableCommands.map(c => ({ value: c, label: c })),
-          initialValues: availableCommands,
-          required: false,
-        });
-        if (isCancel(selectedCommands)) bail();
-        const keepCommands = new Set((selectedCommands || []).map(c => `${c}.md`));
-        for (const f of fs.readdirSync(COMMANDS_DIR)) {
-          if (f.endsWith('.md') && f !== '.gitkeep' && !keepCommands.has(f)) fs.unlinkSync(path.join(COMMANDS_DIR, f));
+        if (isCancel(repoUrl)) bail();
+        const s = spinner();
+        s.start('Cloning repository...');
+        try {
+          await execFileAsync('gh', ['repo', 'clone', repoUrl.trim(), DOTFILES_DIR]);
+          createdDir = DOTFILES_DIR;
+          s.stop('Repository cloned.');
+        } catch (err) {
+          s.stop('Clone failed.');
+          if (fs.existsSync(DOTFILES_DIR)) {
+            fs.rmSync(DOTFILES_DIR, { recursive: true, force: true });
+          }
+          log.error(`gh repo clone failed: ${err.message}`);
+          process.exit(1);
         }
       }
     } else {
-      const repoUrl = await text({
-        message: 'Git repository URL?',
-        placeholder: 'user/.dotfiles',
-      });
-      if (isCancel(repoUrl)) bail();
-      const s = spinner();
-      s.start('Cloning repository...');
-      try {
-        await execFileAsync('gh', ['repo', 'clone', repoUrl.trim(), DOTFILES_DIR]);
-        createdDir = DOTFILES_DIR;
-        s.stop('Repository cloned.');
-      } catch (err) {
-        s.stop('Clone failed.');
-        if (fs.existsSync(DOTFILES_DIR)) {
-          fs.rmSync(DOTFILES_DIR, { recursive: true, force: true });
-        }
-        log.error(`gh repo clone failed: ${err.message}`);
-        process.exit(1);
-      }
+      await copyFromPackage();
     }
   } else if (!isSameDir) {
     log.warn(`${shorten(DOTFILES_DIR)} already has content, skipping initialization.`);
@@ -404,7 +412,7 @@ async function main() {
 
   // ── Optional: git init ──
   const hasGit = fs.existsSync(path.join(DOTFILES_DIR, '.git'));
-  if (!hasGit) {
+  if (!hasGit && isGlobal) {
     const wantGit = await confirm({ message: 'Set up as git repository?' });
     if (wantGit && !isCancel(wantGit)) {
       const repoUrl = await text({
