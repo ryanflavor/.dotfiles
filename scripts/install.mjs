@@ -44,6 +44,8 @@ function isLinkedTo(linkPath, target) {
   catch { return false; }
 }
 
+const mergeWarnings = [];
+
 function createLink(linkPath, target) {
   const full = expand(linkPath);
   if (isLinkedTo(linkPath, target)) return 'exists';
@@ -57,7 +59,7 @@ function createLink(linkPath, target) {
       fs.renameSync(full, bak);
       try { execFileSync('rsync', ['-a', '--ignore-existing', `${bak}/`, `${target}/`], { stdio: 'pipe' }); }
       catch { try { execFileSync('cp', ['-an', `${bak}/.`, `${target}/`], { stdio: 'pipe' }); } catch {} }
-      log.warn(`Merged ${shorten(full)} into ${shorten(target)}, backup: ${shorten(bak)}`);
+      mergeWarnings.push(`Merged ${shorten(full)} into ${shorten(target)}, backup: ${shorten(bak)}`);
     } else if (stat.isFile()) {
       fs.renameSync(full, `${full}.bak-${Date.now()}`);
     }
@@ -395,6 +397,8 @@ async function main() {
 
   s.stop('Done!');
 
+  for (const w of mergeWarnings) log.warn(w);
+
   const resultLines = [];
   const verb = method === 'symlink' ? 'symlink(s)' : 'copie(s)';
   if (stats.created) resultLines.push(`✓ ${stats.created} new ${verb} created`);
@@ -411,8 +415,7 @@ async function main() {
   createdLinks.length = 0;
 
   // ── Optional: git init ──
-  const hasGit = fs.existsSync(path.join(DOTFILES_DIR, '.git'));
-  if (!hasGit && isGlobal) {
+  if (!isGitRepo && isGlobal) {
     const wantGit = await confirm({ message: 'Set up as git repository?' });
     if (wantGit && !isCancel(wantGit)) {
       const repoUrl = await text({
