@@ -30,6 +30,13 @@ TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
 正在生成总结...
 ```
 
+用 `cr-comment.sh post` 发布，将返回的 node ID 保存到 `$CR_WORKSPACE/comments/cr-summary.id`：
+
+```bash
+SUMMARY_NODE_ID=$($HOME/.factory/skills/cross-review/scripts/cr-comment.sh post "$PLACEHOLDER_BODY")
+echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
+```
+
 ### 2. 收集所有结果 + 清理旧评论
 
 #### 收集结果
@@ -67,8 +74,16 @@ done
 ```bash
 BASE=$(cat "$CR_WORKSPACE/state/base")
 BRANCH=$(cat "$CR_WORKSPACE/state/branch")
-git diff "origin/$BASE...HEAD"
 ```
+
+**⚠️ 重要：仅读取与已确认 findings 相关的文件 diff，不要读取全量 diff！**
+
+```bash
+# 仅读取相关文件的 diff（假设 finding 涉及 path/to/file.py）
+git diff "origin/$BASE...origin/$BRANCH" -- path/to/file.py
+```
+
+如果 findings 涉及多个文件，逐个读取而不是一次性全量 diff。**禁止不带路径的 `git diff`** — 大 PR 的全量 diff 会导致超时。
 
 #### 3.1 汇总评论模板
 
@@ -127,8 +142,8 @@ git diff "origin/$BASE...HEAD"
 修复在独立分支（如 `cr/pr20-fix-xxx`），但 inline comment 要发到原 PR 上：
 
 ```bash
-# 获取原 PR 的 diff（不是修复后的 HEAD）
-git diff origin/$BASE...origin/$BRANCH
+# 仅获取相关文件的 diff（不要全量 diff！）
+git diff origin/$BASE...origin/$BRANCH -- path/to/relevant-file.yml
 ```
 
 行号必须是**原 PR diff 中有问题的代码行**，而不是修复后的行号。
@@ -178,23 +193,26 @@ Useful? React with 👍 / 👎.
 
 ### 4. 发布
 
-#### 有已修复的 findings → PR review + inline comments
+**始终先更新占位评论**（避免残留 "正在生成总结..." 幽灵评论）：
+
+```bash
+SUMMARY_NODE_ID=$(cat "$CR_WORKSPACE/comments/cr-summary.id")
+$HOME/.factory/skills/cross-review/scripts/cr-comment.sh edit "$SUMMARY_NODE_ID" "$SUMMARY_BODY"
+```
+
+#### 有已修复的 findings → 额外发布 PR review + inline comments
 
 使用 `cr-comment.sh review-post` 发布 PR review（COMMENT 事件）+ inline comments：
 
 ```bash
-$HOME/.factory/skills/cross-review/scripts/cr-comment.sh review-post "$SUMMARY_BODY" "$INLINE_COMMENTS_JSON"
+$HOME/.factory/skills/cross-review/scripts/cr-comment.sh review-post "See summary comment above." "$INLINE_COMMENTS_JSON"
 ```
 
-#### 无已修复的 findings → 普通评论
+#### 无已修复的 findings → 仅更新占位评论即可
 
-以下情况用普通评论（无 inline）：
+以下情况只需上面的 `edit` 操作，无需额外发布：
 - both_ok（双方未发现问题）
 - 所有 findings 均为 Skip（误报）
-
-```bash
-$HOME/.factory/skills/cross-review/scripts/cr-comment.sh post "$SUMMARY_BODY"
-```
 
 ### 5. 完成
 

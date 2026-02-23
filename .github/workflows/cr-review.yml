@@ -24,12 +24,12 @@ on:
         required: false
         type: string
         default: 'custom:claude-opus-4-6'
-        description: "Model for Alpha agent"
+        description: "Model for Claude agent"
       model_gpt:
         required: false
         type: string
         default: 'custom:gpt-5.3-codex'
-        description: "Model for Beta agent"
+        description: "Model for GPT agent"
     secrets:
       CR_APP_ID:
         required: false
@@ -45,8 +45,10 @@ jobs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
       - id: check
+        env:
+          PR_BRANCH: ${{ inputs.pr_branch }}
         run: |
-          if [[ "${{ inputs.pr_branch }}" == cr/* ]]; then
+          if [[ "$PR_BRANCH" == cr/* ]]; then
             echo "should_run=false" >> $GITHUB_OUTPUT
           else
             echo "should_run=true" >> $GITHUB_OUTPUT
@@ -83,15 +85,19 @@ jobs:
       - name: Initialize workspace
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
+          DROID_REPO: ${{ inputs.repo }}
+          DROID_PR_NUMBER: ${{ inputs.pr_number }}
+          DROID_BASE: ${{ inputs.base_branch }}
+          DROID_BRANCH: ${{ inputs.pr_branch }}
         run: |
-          PR_NODE_ID=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json id -q '.id')
+          PR_NODE_ID=$(gh pr view "$DROID_PR_NUMBER" --repo "$DROID_REPO" --json id -q '.id')
 
           SKILL_DIR="$HOME/.factory/skills/cross-review"
           "$SKILL_DIR/scripts/cr-init.sh" \
-            "${{ inputs.repo }}" \
-            "${{ inputs.pr_number }}" \
-            "${{ inputs.base_branch }}" \
-            "${{ inputs.pr_branch }}" \
+            "$DROID_REPO" \
+            "$DROID_PR_NUMBER" \
+            "$DROID_BASE" \
+            "$DROID_BRANCH" \
             "$PR_NODE_ID"
 
       - name: Cross Review
@@ -104,8 +110,8 @@ jobs:
           DROID_BRANCH: ${{ inputs.pr_branch }}
           DROID_BASE: ${{ inputs.base_branch }}
         run: |
-          SAFE_REPO=$(echo "${{ inputs.repo }}" | tr '/' '-')
-          export CR_WORKSPACE="/tmp/cr-${SAFE_REPO}-${{ inputs.pr_number }}"
+          SAFE_REPO=$(echo "$DROID_REPO" | tr '/' '-')
+          export CR_WORKSPACE="/tmp/cr-${SAFE_REPO}-${DROID_PR_NUMBER}"
           export CR_SOCKET="$(cat "$CR_WORKSPACE/socket.path")"
 
           SKILL_DIR="$HOME/.factory/skills/cross-review"
@@ -115,7 +121,7 @@ jobs:
 
           # Send initial prompt to Orchestrator
           # NOTE: -l sends text literally; Enter must be a SEPARATE send-keys call
-          PROMPT="Load skill: cross-review. Execute the full review pipeline for PR #${{ inputs.pr_number }} (${{ inputs.pr_branch }} -> ${{ inputs.base_branch }}) in ${{ inputs.repo }}. model_claude=${{ inputs.model_claude }} model_gpt=${{ inputs.model_gpt }}. CRITICAL CONTEXT: The workspace is ALREADY initialized at $CR_WORKSPACE (do NOT re-run cr-init.sh). The tmux socket is $CR_SOCKET. You ARE the orchestrator running inside tmux — do NOT run cr-spawn.sh orchestrator, do NOT run cr-cleanup.sh, do NOT run kill-server. Start directly from Stage 1: spawn claude and gpt agents, then proceed through stages 2-5. When done, write 'done' to $CR_WORKSPACE/state/stage."
+          PROMPT="Load skill: cross-review. Execute the full review pipeline for PR #${DROID_PR_NUMBER} (${DROID_BRANCH} -> ${DROID_BASE}) in ${DROID_REPO}. model_claude=${CR_MODEL_CLAUDE} model_gpt=${CR_MODEL_GPT}. CRITICAL CONTEXT: The workspace is ALREADY initialized at $CR_WORKSPACE (do NOT re-run cr-init.sh). The tmux socket is $CR_SOCKET. You ARE the orchestrator running inside tmux — do NOT run cr-spawn.sh orchestrator, do NOT run cr-cleanup.sh, do NOT run kill-server. Start directly from Stage 1: spawn claude and gpt agents, then proceed through stages 2-5. When done, write 'done' to $CR_WORKSPACE/state/stage."
           tmux -S "$CR_SOCKET" send-keys -t orchestrator:0.0 -l "$PROMPT"
           tmux -S "$CR_SOCKET" send-keys -t orchestrator:0.0 Enter
 
@@ -162,8 +168,8 @@ jobs:
           WATCHDOG_PID=$!
           echo "Watchdog PID: $WATCHDOG_PID"
 
-          # Poll for completion (timeout 30 min)
-          TIMEOUT=1800
+          # Poll for completion (timeout 45 min)
+          TIMEOUT=2700
           ELAPSED=0
           while [[ $ELAPSED -lt $TIMEOUT ]]; do
             STAGE=$(cat "$CR_WORKSPACE/state/stage" 2>/dev/null || echo "")
@@ -188,6 +194,13 @@ jobs:
             # Check if droid is still running
             if [[ -n "$PANE_PID" ]] && ! pgrep -P "$PANE_PID" -f droid >/dev/null 2>&1; then
               echo "Warning: droid process exited at ELAPSED=${ELAPSED}s"
+              # Re-check stage — droid may have written 'done' right before exiting
+              RECHECK_STAGE=$(cat "$CR_WORKSPACE/state/stage" 2>/dev/null || echo "")
+              if [[ "$RECHECK_STAGE" == "done" ]]; then
+                echo "Stage is 'done' — droid exited normally after completion."
+                STAGE="done"
+                break
+              fi
               echo "--- Orchestrator pane log (last 100 lines) ---"
               tail -100 "$PANE_LOG" 2>/dev/null || echo "(missing)"
               kill "$WATCHDOG_PID" 2>/dev/null || true
@@ -223,9 +236,12 @@ jobs:
 
       - name: Cleanup
         if: always()
+        env:
+          DROID_REPO: ${{ inputs.repo }}
+          DROID_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          SAFE_REPO=$(echo "${{ inputs.repo }}" | tr '/' '-')
-          export CR_WORKSPACE="/tmp/cr-${SAFE_REPO}-${{ inputs.pr_number }}"
+          SAFE_REPO=$(echo "$DROID_REPO" | tr '/' '-')
+          export CR_WORKSPACE="/tmp/cr-${SAFE_REPO}-${DROID_PR_NUMBER}"
           if [[ -d "$CR_WORKSPACE" ]]; then
             SKILL_DIR="$HOME/.factory/skills/cross-review"
             "$SKILL_DIR/scripts/cr-cleanup.sh" 2>/dev/null || true

@@ -44,23 +44,29 @@ for ROUND in $(seq 1 $MAX_ROUNDS); do
     CONTEXT="## GPT's Response (Round $PREV)\n$(cat "$CR_WORKSPACE/results/gpt-crosscheck-round${PREV}.md")"
   fi
 
-  cat > "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md" << EOF
+  # Write task header (quoted heredoc — no shell expansion)
+  cat > "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md" << 'TASK'
 <system-instruction>
 你是 claude，cross-review 审查者。
 </system-instruction>
 
-# Cross-Check Task - Round $ROUND
+# Cross-Check Task
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
 注意：先创建或更新交叉确认的 PR 评论！
 
-$CONTEXT
+TASK
+
+  # Append context (agent output — must NOT go through heredoc expansion)
+  printf '%s\n' "$CONTEXT" >> "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
+
+  cat >> "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md" << TASK_FOOTER
 
 ## Instructions
 Analyze and respond. For each issue, decide: 🔧 Fix or ⏭️ Skip.
 Write to: $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.md
 When done: touch $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.done
-EOF
+TASK_FOOTER
 
   tmux -S "$CR_SOCKET" send-keys -t claude:0.0 -l "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
   tmux -S "$CR_SOCKET" send-keys -t claude:0.0 Enter
@@ -70,23 +76,29 @@ EOF
   # === GPT 回应 ===
   CLAUDE_RESPONSE=$(cat "$CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.md")
 
-  cat > "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md" << EOF
+  # Write task header (quoted heredoc — no shell expansion)
+  cat > "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md" << 'TASK'
 <system-instruction>
 你是 gpt，cross-review 审查者。
 </system-instruction>
 
-# Cross-Check Response - Round $ROUND
+# Cross-Check Response
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
 注意：更新交叉确认的 PR 评论，追加你的分析！
 
-Claude's analysis (Round $ROUND):
-$CLAUDE_RESPONSE
+Claude's analysis:
+TASK
+
+  # Append Claude's response (agent output — must NOT go through heredoc expansion)
+  printf '%s\n' "$CLAUDE_RESPONSE" >> "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
+
+  cat >> "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md" << TASK_FOOTER
 
 Provide your counter-analysis. For each issue: 🔧 Fix or ⏭️ Skip.
 Write to: $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.md
 When done: touch $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.done
-EOF
+TASK_FOOTER
 
   tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 -l "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
   tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 Enter
@@ -118,11 +130,11 @@ done
 
 ```bash
 # 写入最终交叉确认结果
-cat > "$CR_WORKSPACE/results/crosscheck-summary.md" << EOF
+cat > "$CR_WORKSPACE/results/crosscheck-summary.md" << 'SUMMARY'
 | Issue | Status | Detail |
 |-------|--------|--------|
 | ... | 🔧 Fix / ⏭️ Skip / ⚠️ Deadlock | ... |
-EOF
+SUMMARY
 ```
 
 - 有 Fix 问题 → 阶段 4

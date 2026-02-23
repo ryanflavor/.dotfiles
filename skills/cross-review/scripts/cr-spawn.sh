@@ -54,11 +54,11 @@ done
 
 # Configure settings.json (model + spec mode) and mcp.json (disable auggie)
 # in a single python3 call to minimize startup latency
-TARGET_ID=$(python3 -c "
+TARGET_ID=$(CR_MODEL="$MODEL" CR_SETTINGS="$SETTINGS_FILE" python3 -c "
 import json, sys, os
 
-model_arg = '$MODEL'
-settings_path = '$SETTINGS_FILE'
+model_arg = os.environ['CR_MODEL']
+settings_path = os.environ['CR_SETTINGS']
 mcp_path = os.path.expanduser('~/.factory/mcp.json')
 
 # --- settings.json: set model + disable spec mode ---

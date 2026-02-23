@@ -32,18 +32,23 @@ BRANCH=$(cat "$CR_WORKSPACE/state/branch")
 FIX_ISSUES=$(cat "$CR_WORKSPACE/results/crosscheck-summary.md" 2>/dev/null || \
              cat "$CR_WORKSPACE/results/claude-r1.md")
 
-cat > "$CR_WORKSPACE/tasks/claude-fix.md" << EOF
+cat > "$CR_WORKSPACE/tasks/claude-fix.md" << 'TASK'
 <system-instruction>
 你是 claude，cross-review 修复者。
 </system-instruction>
 
-# Fix Task - Round $(cat "$CR_WORKSPACE/state/s4-round")
+# Fix Task
 
 Read ~/.factory/skills/cross-review/stages/4-fix-agent.md for guidelines.
 注意：先创建占位评论！
 
 ## Issues to Fix
-$FIX_ISSUES
+TASK
+
+# Append issues (agent output — must NOT go through heredoc expansion)
+printf '%s\n' "$FIX_ISSUES" >> "$CR_WORKSPACE/tasks/claude-fix.md"
+
+cat >> "$CR_WORKSPACE/tasks/claude-fix.md" << TASK_FOOTER
 
 ## Context
 - Repo: $REPO
@@ -56,7 +61,7 @@ $FIX_ISSUES
 2. Create fix branch, make changes, commit, push
 3. Write fix summary to: $CR_WORKSPACE/results/claude-fix.md
 4. When done: touch $CR_WORKSPACE/results/claude-fix.done
-EOF
+TASK_FOOTER
 
 tmux -S "$CR_SOCKET" send-keys -t claude:0.0 -l "Read and execute $CR_WORKSPACE/tasks/claude-fix.md"
 tmux -S "$CR_SOCKET" send-keys -t claude:0.0 Enter
@@ -70,7 +75,7 @@ $HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude fix 600
 FIX_RESULT=$(cat "$CR_WORKSPACE/results/claude-fix.md")
 FIX_BRANCH=$(cat "$CR_WORKSPACE/state/s4-branch")
 
-cat > "$CR_WORKSPACE/tasks/gpt-verify.md" << EOF
+cat > "$CR_WORKSPACE/tasks/gpt-verify.md" << 'TASK'
 <system-instruction>
 你是 gpt，cross-review 验证者。
 </system-instruction>
@@ -81,7 +86,12 @@ Read ~/.factory/skills/cross-review/stages/4-verify-agent.md for guidelines.
 注意：先创建占位评论！
 
 ## Fix Details
-$FIX_RESULT
+TASK
+
+# Append fix result (agent output — must NOT go through heredoc expansion)
+printf '%s\n' "$FIX_RESULT" >> "$CR_WORKSPACE/tasks/gpt-verify.md"
+
+cat >> "$CR_WORKSPACE/tasks/gpt-verify.md" << TASK_FOOTER
 
 ## Context
 - Fix branch: $FIX_BRANCH
@@ -94,7 +104,7 @@ $FIX_RESULT
 2. Review the fix diff
 3. Write result to: $CR_WORKSPACE/results/gpt-verify.md
 4. When done: touch $CR_WORKSPACE/results/gpt-verify.done
-EOF
+TASK_FOOTER
 
 tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 -l "Read and execute $CR_WORKSPACE/tasks/gpt-verify.md"
 tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 Enter

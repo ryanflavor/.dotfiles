@@ -13,7 +13,7 @@ Commands:
   edit <node_id> <body>      Edit comment
   edit <node_id> --stdin     Edit comment from stdin
   delete <node_id>           Delete comment
-  list                       List DUO/CR comments
+  list                       List CR comments
   review-post <body> <json>  Post PR review with inline comments
 
 Environment (required):

@@ -70,11 +70,11 @@ TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
 
 ### 对话记录
 
-{ICON_ALPHA} **Claude**: 我认为 Issue1 需要修复，理由是...
+{ICON_CLAUDE} **Claude**: 我认为 Issue1 需要修复，理由是...
 
-{ICON_BETA} **GPT**: 同意 Issue1。对于 Issue2...
+{ICON_GPT} **GPT**: 同意 Issue1。对于 Issue2...
 
-{ICON_ALPHA} **Claude**: Issue2 也同意，达成共识。
+{ICON_CLAUDE} **Claude**: Issue2 也同意，达成共识。
 
 ### 结论
 

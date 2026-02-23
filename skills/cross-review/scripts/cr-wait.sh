@@ -60,6 +60,15 @@ while true; do
     exit 1
   fi
 
+  # Tertiary: check if pane process is dead (remain-on-exit keeps session alive after crash)
+  PANE_DEAD=$(tmux -S "$CR_SOCKET" display-message -t "$AGENT":0.0 -p '#{pane_dead}' 2>/dev/null || echo "")
+  if [[ "$PANE_DEAD" == "1" ]]; then
+    echo "Error: $AGENT pane process has died (remain-on-exit kept session alive)" >&2
+    echo "Last pane output:" >&2
+    tmux -S "$CR_SOCKET" capture-pane -p -J -t "$AGENT":0.0 -S -30 2>/dev/null >&2 || true
+    exit 1
+  fi
+
   # Timeout check
   NOW=$(date +%s)
   if (( NOW >= DEADLINE )); then
