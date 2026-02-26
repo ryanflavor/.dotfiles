@@ -2,21 +2,23 @@
 set -euo pipefail
 
 SETTINGS_FILE="$HOME/.factory/settings.json"
+SESSION="cr"
 
 usage() {
   cat <<'USAGE'
 Usage: cr-spawn.sh <agent_name> <model>
 
-Split the current tmux window and start a droid in the new pane.
-The current pane (orchestrator) stays untouched; agents appear beside it.
+Start an interactive droid in a tmux pane within the shared "cr" session.
+First agent creates the session; subsequent agents split a new pane.
+User can watch both agents with: tmux -S "$CR_SOCKET" attach -t cr
 
 Arguments:
-  agent_name    Pane identifier (e.g., claude, gpt)
-  model         Custom model ID (e.g., custom:claude-opus-4-6)
+  agent_name    Pane label (e.g., claude, gpt)
+  model         Custom model ID (required, e.g., custom:claude-opus-4-6)
 
 Environment (required):
   CR_WORKSPACE  Workspace path
-  TMUX          Must be running inside tmux
+  CR_SOCKET     tmux socket path (or reads from $CR_WORKSPACE/socket.path)
 USAGE
 }
 
@@ -33,36 +35,38 @@ if [[ -z "${CR_WORKSPACE:-}" ]]; then
   exit 1
 fi
 
-if [[ -z "${TMUX:-}" ]]; then
-  echo "Error: not running inside tmux" >&2
-  exit 1
-fi
+CR_SOCKET="${CR_SOCKET:-$(cat "$CR_WORKSPACE/socket.path")}"
 
-# Count existing panes to decide split direction
-PANE_COUNT=$(tmux list-panes -F '#{pane_index}' | wc -l)
-if [[ "$PANE_COUNT" -eq 1 ]]; then
-  # First agent: split right, orchestrator keeps 50%
-  tmux split-window -h -d -l 50%
+# Determine pane target: first agent creates session, subsequent agents split
+if ! tmux -S "$CR_SOCKET" has-session -t "$SESSION" 2>/dev/null; then
+  tmux -S "$CR_SOCKET" new-session -d -s "$SESSION" -n main -x 200 -y 50
+  tmux -S "$CR_SOCKET" set-option -t "$SESSION" remain-on-exit on
+  PANE_TARGET="$SESSION:0.0"
 else
-  # Subsequent agents: split the last agent pane vertically, equal share
-  LAST_PANE=$((PANE_COUNT - 1))
-  tmux split-window -v -d -l 50% -t ":.${LAST_PANE}"
+  # Count existing panes to decide split direction
+  PANE_COUNT=$(tmux -S "$CR_SOCKET" list-panes -t "$SESSION:0" -F '#{pane_index}' | wc -l)
+  if [[ "$PANE_COUNT" -eq 1 ]]; then
+    # Second agent: split horizontally (left/right with orchestrator)
+    tmux -S "$CR_SOCKET" split-window -h -t "$SESSION:0"
+  else
+    # Third+ agent: split the right pane vertically (stack agents)
+    LAST_PANE=$((PANE_COUNT - 1))
+    tmux -S "$CR_SOCKET" split-window -v -t "$SESSION:0.$LAST_PANE"
+  fi
+  tmux -S "$CR_SOCKET" select-layout -t "$SESSION:0" main-vertical
+  PANE_IDX=$(tmux -S "$CR_SOCKET" display-message -t "$SESSION:0" -p '#{pane_index}')
+  PANE_TARGET="$SESSION:0.$PANE_IDX"
 fi
 
-# The new pane is the highest index
-NEW_PANE_IDX=$(tmux list-panes -F '#{pane_index}' | tail -1)
-PANE_TARGET=":.${NEW_PANE_IDX}"
+# Store pane target so orchestrator/cr-wait can address this agent
+echo "$PANE_TARGET" > "$CR_WORKSPACE/state/pane-${AGENT}"
 
-# Store pane ID (stable across layout changes, unlike index)
-PANE_ID=$(tmux display-message -t "$PANE_TARGET" -p '#{pane_id}')
-echo "$PANE_ID" > "$CR_WORKSPACE/state/pane-${AGENT}"
-
-# Propagate environment to the new pane
-for VAR in CR_WORKSPACE GH_TOKEN GITHUB_TOKEN \
+# Propagate key environment variables
+for VAR in CR_WORKSPACE CR_SOCKET GH_TOKEN GITHUB_TOKEN \
            CR_MODEL_CLAUDE CR_MODEL_GPT \
            DROID_PR_NUMBER DROID_REPO DROID_BRANCH DROID_BASE; do
   if [[ -n "${!VAR:-}" ]]; then
-    tmux set-environment "$VAR" "${!VAR}"
+    tmux -S "$CR_SOCKET" set-environment -t "$SESSION" "$VAR" "${!VAR}"
   fi
 done
 
@@ -74,6 +78,7 @@ model_arg = os.environ['CR_MODEL']
 settings_path = os.environ['CR_SETTINGS']
 mcp_path = os.path.expanduser('~/.factory/mcp.json')
 
+# --- settings.json: set model + disable spec mode ---
 if os.path.isfile(settings_path):
     with open(settings_path) as f:
         s = json.load(f)
@@ -86,13 +91,13 @@ if os.path.isfile(settings_path):
     s.setdefault('sessionDefaultSettings', {})
     s['sessionDefaultSettings']['model'] = target_id
     s['sessionDefaultSettings']['specMode'] = False
-    s['sessionDefaultSettings']['reasoningEffort'] = os.environ.get('CR_REASONING_EFFORT', 'high')
     with open(settings_path, 'w') as f:
         json.dump(s, f, indent=2, ensure_ascii=False)
     print(target_id)
 else:
     print(model_arg)
 
+# --- mcp.json: disable auggie to prevent EIO ---
 if os.path.isfile(mcp_path):
     with open(mcp_path) as f:
         m = json.load(f)
@@ -108,15 +113,16 @@ if os.path.isfile(mcp_path):
 
 echo "Setting default model to: $TARGET_ID"
 
-# Start droid in the new pane
+# Start interactive droid in this pane
 WORK_DIR="$(pwd)"
-tmux send-keys -t "$PANE_ID" "cd \"${WORK_DIR}\" && droid" Enter
+tmux -S "$CR_SOCKET" send-keys -t "$PANE_TARGET" \
+  "cd \"${WORK_DIR}\" && droid" Enter
 
 # Wait for droid to initialize
 echo "Waiting for droid to initialize ($AGENT)..."
 READY=false
 for i in $(seq 1 60); do
-  PANE="$(tmux capture-pane -p -J -t "$PANE_ID" -S -20 2>/dev/null || true)"
+  PANE="$(tmux -S "$CR_SOCKET" capture-pane -p -J -t "$PANE_TARGET" -S -20 2>/dev/null || true)"
   if echo "$PANE" | grep -qE '(ctrl\+N to cycle|shift\+tab to cycle|\? for help|MCP)'; then
     READY=true
     echo "Droid TUI detected as ready."
@@ -134,4 +140,8 @@ if [[ "$READY" != "true" ]]; then
   echo "Warning: droid may not be fully initialized" >&2
 fi
 
-echo "Agent '$AGENT' started in pane $PANE_ID (model: $MODEL)"
+echo ""
+echo "Agent '$AGENT' started in pane $PANE_TARGET (model: $MODEL)"
+echo ""
+echo "To watch all agents:"
+echo "  tmux -S \"$CR_SOCKET\" attach -t $SESSION"
