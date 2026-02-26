@@ -23,20 +23,24 @@ TARGETS = [
 ]
 
 for fn_name in TARGETS:
-    entry_pat = fn_name + rb'\((' + V + rb')\)\{if\(\1\.length===0\)'
+    # Support both 1-param fn(H){...} and 2-param fn(H,A){...} signatures
+    entry_pat = fn_name + rb'\((' + V + rb')(?:,' + V + rb')?\)\{if\(\1\.length===0\)'
     m_entry = re.search(entry_pat, data)
     if not m_entry:
         raise ValueError(f"{fn_name.decode()} 入口未找到!")
 
     param = m_entry.group(1)
+    full_match = m_entry.group(0)
     region_start = m_entry.start()
 
     m_check = re.search(VALIDATE_PAT, data[region_start:region_start + 600])
     if not m_check:
         raise ValueError(f"{fn_name.decode()} validateModelAccess 未找到!")
 
-    old_entry = fn_name + b'(' + param + b'){if(' + param + b'.length===0)'
-    new_entry = fn_name + b'(' + param + b'){' + param + INSERT + b'if(' + param + b'.length===0)'
+    # Use the actual matched text to build replacement
+    prefix_end = full_match.find(b'{if(')
+    old_entry = full_match
+    new_entry = full_match[:prefix_end+1] + param + INSERT + full_match[prefix_end+1:]
     extra = len(new_entry) - len(old_entry)
 
     old_check = m_check.group(0)
@@ -45,10 +49,12 @@ for fn_name in TARGETS:
         raise ValueError(f"{fn_name.decode()} 填充空间不足: {pad} < 4")
     new_check = b'/*' + b' ' * (pad - 4) + b'*/'
 
+    # Replace validateModelAccess check first (it's after entry)
     check_offset = region_start + m_check.start()
     data = data[:check_offset] + new_check + data[check_offset + len(old_check):]
 
-    entry_offset = data.find(old_entry, max(0, region_start - 10), region_start + 100)
+    # Re-find old_entry since offsets haven't changed before check_offset
+    entry_offset = data.find(old_entry, max(0, region_start - 10), region_start + len(old_entry) + 10)
     if entry_offset == -1:
         raise ValueError(f"{fn_name.decode()} entry 替换定位失败")
     data = data[:entry_offset] + new_entry + data[entry_offset + len(old_entry):]
