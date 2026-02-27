@@ -7,16 +7,16 @@ usage() {
   cat <<'USAGE'
 Usage: cr-spawn.sh <agent_name> <model>
 
-Start an interactive droid in a tmux session with the specified model.
-Model is set by temporarily updating settings.json before droid starts.
+Split the current tmux window and start a droid in the new pane.
+The current pane (orchestrator) stays untouched; agents appear beside it.
 
 Arguments:
-  agent_name    Session name (e.g., claude, gpt)
-  model         Custom model ID (required, e.g., custom:claude-opus-4-6)
+  agent_name    Pane identifier (e.g., claude, gpt)
+  model         Custom model ID (e.g., custom:claude-opus-4-6)
 
 Environment (required):
   CR_WORKSPACE  Workspace path
-  CR_SOCKET     tmux socket path (or reads from $CR_WORKSPACE/socket.path)
+  TMUX          Must be running inside tmux
 USAGE
 }
 
@@ -33,27 +33,40 @@ if [[ -z "${CR_WORKSPACE:-}" ]]; then
   exit 1
 fi
 
-CR_SOCKET="${CR_SOCKET:-$(cat "$CR_WORKSPACE/socket.path")}"
+if [[ -z "${TMUX:-}" ]]; then
+  echo "Error: not running inside tmux" >&2
+  exit 1
+fi
 
-# Kill existing session if any
-tmux -S "$CR_SOCKET" kill-session -t "$AGENT" 2>/dev/null || true
+# Count existing panes to decide split direction
+PANE_COUNT=$(tmux list-panes -F '#{pane_index}' | wc -l)
+if [[ "$PANE_COUNT" -eq 1 ]]; then
+  # First agent: split right, orchestrator keeps 50%
+  tmux split-window -h -d -l 50%
+else
+  # Subsequent agents: split the last agent pane vertically, equal share
+  LAST_PANE=$((PANE_COUNT - 1))
+  tmux split-window -v -d -l 50% -t ":.${LAST_PANE}"
+fi
 
-# Create new session with generous size for TUI rendering
-tmux -S "$CR_SOCKET" new-session -d -s "$AGENT" -n main -x 160 -y 50
-# Keep pane alive even if droid exits, so we can inspect the output
-tmux -S "$CR_SOCKET" set-option -t "$AGENT" remain-on-exit on
+# The new pane is the highest index
+NEW_PANE_IDX=$(tmux list-panes -F '#{pane_index}' | tail -1)
+PANE_TARGET=":.${NEW_PANE_IDX}"
 
-# Propagate key environment variables into the tmux session
-for VAR in CR_WORKSPACE CR_SOCKET GH_TOKEN GITHUB_TOKEN \
+# Store pane ID (stable across layout changes, unlike index)
+PANE_ID=$(tmux display-message -t "$PANE_TARGET" -p '#{pane_id}')
+echo "$PANE_ID" > "$CR_WORKSPACE/state/pane-${AGENT}"
+
+# Propagate environment to the new pane
+for VAR in CR_WORKSPACE GH_TOKEN GITHUB_TOKEN \
            CR_MODEL_CLAUDE CR_MODEL_GPT \
            DROID_PR_NUMBER DROID_REPO DROID_BRANCH DROID_BASE; do
   if [[ -n "${!VAR:-}" ]]; then
-    tmux -S "$CR_SOCKET" set-environment -t "$AGENT" "$VAR" "${!VAR}"
+    tmux set-environment "$VAR" "${!VAR}"
   fi
 done
 
 # Configure settings.json (model + spec mode) and mcp.json (disable auggie)
-# in a single python3 call to minimize startup latency
 TARGET_ID=$(CR_MODEL="$MODEL" CR_SETTINGS="$SETTINGS_FILE" python3 -c "
 import json, sys, os
 
@@ -61,11 +74,9 @@ model_arg = os.environ['CR_MODEL']
 settings_path = os.environ['CR_SETTINGS']
 mcp_path = os.path.expanduser('~/.factory/mcp.json')
 
-# --- settings.json: set model + disable spec mode ---
 if os.path.isfile(settings_path):
     with open(settings_path) as f:
         s = json.load(f)
-    # Resolve custom model ID
     base = model_arg.replace('custom:', '', 1)
     target_id = model_arg
     for m in s.get('customModels', []):
@@ -75,14 +86,13 @@ if os.path.isfile(settings_path):
     s.setdefault('sessionDefaultSettings', {})
     s['sessionDefaultSettings']['model'] = target_id
     s['sessionDefaultSettings']['specMode'] = False
+    s['sessionDefaultSettings']['reasoningEffort'] = os.environ.get('CR_REASONING_EFFORT', 'high')
     with open(settings_path, 'w') as f:
         json.dump(s, f, indent=2, ensure_ascii=False)
     print(target_id)
-    print('Spec mode disabled', file=sys.stderr)
 else:
     print(model_arg)
 
-# --- mcp.json: disable auggie to prevent EIO ---
 if os.path.isfile(mcp_path):
     with open(mcp_path) as f:
         m = json.load(f)
@@ -94,32 +104,24 @@ if os.path.isfile(mcp_path):
     if changed:
         with open(mcp_path, 'w') as f:
             json.dump(m, f, indent=2)
-        print('Disabled auggie MCP', file=sys.stderr)
 " 2>/dev/null || echo "$MODEL")
 
 echo "Setting default model to: $TARGET_ID"
 
-# Start interactive droid (reads model from settings.json)
-# Auggie MCP is disabled above, so no need for script(1) PTY wrapper
+# Start droid in the new pane
 WORK_DIR="$(pwd)"
-tmux -S "$CR_SOCKET" send-keys -t "$AGENT":0.0 \
-  "cd \"${WORK_DIR}\" && droid" Enter
+tmux send-keys -t "$PANE_ID" "cd \"${WORK_DIR}\" && droid" Enter
 
 # Wait for droid to initialize
-# NOTE: In CI (detached tmux), droid TUI doesn't fully render its status bar
-# in capture-pane output. We use two strategies:
-# 1. Try to detect TUI indicators (works in interactive terminals)
-# 2. Fall back to checking if droid process is alive + fixed wait
-echo "Waiting for droid to initialize in session '$AGENT'..."
+echo "Waiting for droid to initialize ($AGENT)..."
 READY=false
 for i in $(seq 1 60); do
-  PANE="$(tmux -S "$CR_SOCKET" capture-pane -p -J -t "$AGENT":0.0 -S -20 2>/dev/null || true)"
+  PANE="$(tmux capture-pane -p -J -t "$PANE_ID" -S -20 2>/dev/null || true)"
   if echo "$PANE" | grep -qE '(ctrl\+N to cycle|shift\+tab to cycle|\? for help|MCP)'; then
     READY=true
     echo "Droid TUI detected as ready."
     break
   fi
-  # Check if droid process started (banner visible = process running)
   if echo "$PANE" | grep -qE 'v[0-9]+\.[0-9]+\.[0-9]+'; then
     READY=true
     echo "Droid ready (banner detected after ${i}s)."
@@ -130,12 +132,6 @@ done
 
 if [[ "$READY" != "true" ]]; then
   echo "Warning: droid may not be fully initialized" >&2
-  tmux -S "$CR_SOCKET" capture-pane -p -J -t "$AGENT":0.0 -S -10 2>/dev/null || true
 fi
 
-echo ""
-echo "Agent '$AGENT' started (model: $MODEL)"
-echo ""
-echo "To monitor:"
-echo "  tmux -S \"$CR_SOCKET\" attach -t $AGENT"
-echo "  tmux -S \"$CR_SOCKET\" capture-pane -p -J -t $AGENT:0.0 -S -200"
+echo "Agent '$AGENT' started in pane $PANE_ID (model: $MODEL)"

@@ -2,7 +2,6 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`、`cr-cleanup.sh`、`kill-server`
 - 不要执行 `cr-spawn.sh orchestrator`
 
 ## 概述
@@ -53,7 +52,6 @@ for ROUND in $(seq 1 $MAX_ROUNDS); do
 # Cross-Check Task
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
-注意：先创建或更新交叉确认的 PR 评论！
 
 TASK
 
@@ -68,8 +66,9 @@ Write to: $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.md
 When done: touch $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.done
 TASK_FOOTER
 
-  tmux -S "$CR_SOCKET" send-keys -t claude:0.0 -l "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
-  tmux -S "$CR_SOCKET" send-keys -t claude:0.0 Enter
+  PANE_CLAUDE=$(cat "$CR_WORKSPACE/state/pane-claude")
+  tmux send-keys -t "$PANE_CLAUDE" -l "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
+  tmux send-keys -t "$PANE_CLAUDE" Enter
 
   $HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude "crosscheck-round${ROUND}" 300
 
@@ -85,7 +84,6 @@ TASK_FOOTER
 # Cross-Check Response
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
-注意：更新交叉确认的 PR 评论，追加你的分析！
 
 Claude's analysis:
 TASK
@@ -100,8 +98,9 @@ Write to: $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.md
 When done: touch $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.done
 TASK_FOOTER
 
-  tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 -l "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
-  tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 Enter
+  PANE_GPT=$(cat "$CR_WORKSPACE/state/pane-gpt")
+  tmux send-keys -t "$PANE_GPT" -l "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
+  tmux send-keys -t "$PANE_GPT" Enter
 
   $HOME/.factory/skills/cross-review/scripts/cr-wait.sh gpt "crosscheck-round${ROUND}" 300
 
