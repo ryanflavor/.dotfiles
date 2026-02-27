@@ -66,13 +66,12 @@ for VAR in CR_WORKSPACE GH_TOKEN GITHUB_TOKEN \
   fi
 done
 
-# Configure settings.json (model + spec mode) and mcp.json (disable auggie)
+# Configure settings.json (model + session defaults)
 TARGET_ID=$(CR_MODEL="$MODEL" CR_SETTINGS="$SETTINGS_FILE" python3 -c "
 import json, sys, os
 
 model_arg = os.environ['CR_MODEL']
 settings_path = os.environ['CR_SETTINGS']
-mcp_path = os.path.expanduser('~/.factory/mcp.json')
 
 if os.path.isfile(settings_path):
     with open(settings_path) as f:
@@ -83,27 +82,25 @@ if os.path.isfile(settings_path):
         if m.get('model', '') == base or m.get('displayName', '') == base:
             target_id = m['id']
             break
-    s.setdefault('sessionDefaultSettings', {})
-    s['sessionDefaultSettings']['model'] = target_id
-    s['sessionDefaultSettings']['specMode'] = False
-    s['sessionDefaultSettings']['reasoningEffort'] = os.environ.get('CR_REASONING_EFFORT', 'high')
-    with open(settings_path, 'w') as f:
-        json.dump(s, f, indent=2, ensure_ascii=False)
+    defaults = s.setdefault('sessionDefaultSettings', {})
+    desired = {
+        'model': target_id,
+        'autonomyMode': 'auto-high',
+        'reasoningEffort': 'high',
+        'specModeReasoningEffort': 'high',
+        'specMode': False,
+    }
+    changed = False
+    for k, v in desired.items():
+        if defaults.get(k) != v:
+            defaults[k] = v
+            changed = True
+    if changed:
+        with open(settings_path, 'w') as f:
+            json.dump(s, f, indent=2, ensure_ascii=False)
     print(target_id)
 else:
     print(model_arg)
-
-if os.path.isfile(mcp_path):
-    with open(mcp_path) as f:
-        m = json.load(f)
-    changed = False
-    for srv in m.get('mcpServers', {}).values():
-        if 'auggie' in srv.get('command', ''):
-            srv['disabled'] = True
-            changed = True
-    if changed:
-        with open(mcp_path, 'w') as f:
-            json.dump(m, f, indent=2)
 " 2>/dev/null || echo "$MODEL")
 
 echo "Setting default model to: $TARGET_ID"
