@@ -92,8 +92,16 @@ def _mod8_detect():
 
 results['mod8'] = _mod8_detect()
 
+# mod9: mission API key 认证
+if b'||process.env.FACTORY_API_KEY;if(!$)throw' in data:
+    results['mod9'] = 'modified'
+elif b'?.access_token?.trim();if(!$)throw new vH("No access token available")' in data:
+    results['mod9'] = 'original'
+else:
+    results['mod9'] = 'unknown'
+
 # 输出
-total = 8
+total = 9
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 
