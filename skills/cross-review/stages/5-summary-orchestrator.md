@@ -2,7 +2,7 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-spawn.sh orchestrator`
+- 不要直接操作 tmux
 
 生成最终汇总，发布唯一一条 PR 评论，然后清理。
 
@@ -49,30 +49,48 @@ git diff "origin/$BASE...origin/$BRANCH" -- path/to/relevant-file.py
 ## {✅|⚠️} Cross Review Summary
 > 🕐 {TIMESTAMP}
 
-{如有 findings:}
-### Findings
+### 审查时间线
 
-| # | Issue | Priority | Status |
-|---|-------|----------|--------|
-| 1 | ... | 🔴 P0 | ✅ Fixed / ⏭️ Skipped / ⚠️ Unfixed |
+| 时间 (UTC) | 事件 |
+|------------|------|
+| MM-DD HH:MM | Round 1 启动 - Claude & GPT 并行审查 {branch} |
+| MM-DD HH:MM | Claude 发现 [P0] ... / Claude 未发现问题 |
+| MM-DD HH:MM | GPT 发现 [P0] ... / GPT 未发现问题 |
+| MM-DD HH:MM | 交叉验认 - {双方问题均已确认 / 存在分歧} |
+| MM-DD HH:MM | 共识: {结论} |
+| MM-DD HH:MM | Claude 修复: {描述} |
+| MM-DD HH:MM | GPT 验证通过 / 验证失败 |
+| MM-DD HH:MM | ✅ 审查完成 |
+
+{如有 findings:}
+### 审查发现
+
+| # | 问题 | 状态 |
+|---|------|------|
+| 1 | 🔴 [P0] ... | ✅ 已修复 / ⏭️ 跳过 |
 
 {如有修复:}
-**Fix branch**: [`{branch}`](https://github.com/{REPO}/compare/{BRANCH}...{fix_branch}) ([`{short_hash}`](https://github.com/{REPO}/commit/{full_hash}))
+**修复分支**: [`{branch}`](https://github.com/{REPO}/compare/{BRANCH}...{fix_branch}) ([`{short_hash}`](https://github.com/{REPO}/commit/{full_hash}))
 
-### Conclusion
+### 审查结论
 
-| Agent | Model | Verdict |
-|-------|-------|---------|
-| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Claude | {model} | {结论} |
-| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> GPT | {model} | {结论} |
+| Agent | 结论 |
+|-------|------|
+| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Claude | {结论} |
+| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> GPT | {结论} |
 
-**Result**: {一句话总结}
+**结论**: {一句话总结}
 
 <details>
 <summary>Session Info</summary>
 
-- Claude model: `$CR_MODEL_CLAUDE`
-- GPT model: `$CR_MODEL_GPT`
+从 `mission status -t "$CR_TEAM"` 获取 agent session ID，从 state 文件获取 orchestrator session：
+
+- Orchestrator: `$(cat "$CR_WORKSPACE/state/orch-session")`
+- Claude: `{sessionId from status}` (model: `$CR_MODEL_CLAUDE`)
+- GPT: `{sessionId from status}` (model: `$CR_MODEL_GPT`)
+- Team: `$CR_TEAM`
+- Workspace: `$CR_WORKSPACE`
 </details>
 ```
 
@@ -132,21 +150,16 @@ REPO=$(cat "$CR_WORKSPACE/state/repo")
 PR_NUMBER=$(cat "$CR_WORKSPACE/state/pr-number")
 ```
 
-#### 有已修复的 findings → summary comment + PR review with inline comments
+#### 有已修复的 findings → 一条 PR review（summary + inline comments）
 
 ```bash
-# 发布 summary comment
-SUMMARY_NODE_ID=$($HOME/.factory/skills/cross-review/scripts/cr-comment.sh post "$SUMMARY_BODY")
-echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
-
-# 发布 PR review + inline comments
-$HOME/.factory/skills/cross-review/scripts/cr-comment.sh review-post "See summary comment above." "$INLINE_COMMENTS_JSON"
+mission comment review-post "$SUMMARY_BODY" "$INLINE_COMMENTS_JSON" --workspace "$CR_WORKSPACE"
 ```
 
-#### 无 findings 或全部 Skip → 仅 summary comment
+#### 无 findings 或全部 Skip → 一条普通评论
 
 ```bash
-SUMMARY_NODE_ID=$($HOME/.factory/skills/cross-review/scripts/cr-comment.sh post "$SUMMARY_BODY")
+SUMMARY_NODE_ID=$(mission comment post "$SUMMARY_BODY" --workspace "$CR_WORKSPACE")
 echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
 ```
 
@@ -155,6 +168,5 @@ echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
 ```bash
 echo "done" > "$CR_WORKSPACE/state/stage"
 
-# Orchestrator 负责清理
-$HOME/.factory/skills/cross-review/scripts/cr-cleanup.sh
+mission delete "$CR_TEAM"
 ```
