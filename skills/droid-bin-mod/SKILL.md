@@ -231,12 +231,16 @@ if(!(!0              &&h9H.includes(bR)))K("system",$7H,...)
 - enter-mission: custom model 保留，只在 reasoning effort 不对时修正
 - vO: 任意模型不再触发警告，只在 effort 不是 high/xhigh 时警告
 
-**配合 mod7**: 应用 mod7+mod8 后，读取 `~/.factory/settings.json` 中的 `customModels` 列表，
-让用户选择 Worker 和 Validator 模型，然后写入 `missionModelSettings`。
+**配合 mod7**: 应用 mod7+mod8 后，检查 `~/.factory/settings.json` 配置完整性，
+确保 custom model 和 missionModelSettings 都正确配置。
 
 **交互流程**:
-1. 读取 settings.json 的 `customModels` 和已有的 `missionModelSettings`
-2. 列出可选模型，显示当前配置，让用户选择:
+1. 读取 settings.json 的 `customModels`，检查每个 custom model 是否有 `reasoningEffort` 字段：
+   - 如果缺少，提示用户：`custom model "XXX" 缺少 reasoningEffort 字段，建议设为 "high"，否则进入 mission 时会显示模型警告。是否自动添加？`
+   - 用户确认后写入（或用户手动指定值）
+   - 原因：droid 用 `customModels[].reasoningEffort` 作为模型的 `defaultReasoningEffort`，缺失时 fallback 到 `"none"`，导致 mission 模式 vO 回调警告触发
+2. 检查已有的 `missionModelSettings`
+3. 列出可选模型，显示当前配置，让用户选择:
 ```
 当前 missionModelSettings:
   Worker:    Claude Opus 4.6 [custom:Claude-Opus-4.6-0] (high)
@@ -249,8 +253,8 @@ if(!(!0              &&h9H.includes(bR)))K("system",$7H,...)
 选择 Worker 模型 [0]:
 选择 Validator 模型 [1]:
 ```
-3. 默认推荐: Worker 用 `sessionDefaultSettings.model`，Validator 用第二个 custom model（如有）
-4. 写入 settings.json 顶层 `missionModelSettings` 字段，格式如下：
+4. 默认推荐: Worker 用 `sessionDefaultSettings.model`，Validator 用第二个 custom model（如有）
+5. 写入 settings.json 顶层 `missionModelSettings` 字段，格式如下：
 
 ```json
 {
