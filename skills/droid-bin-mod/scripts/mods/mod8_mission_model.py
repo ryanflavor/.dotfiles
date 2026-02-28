@@ -7,9 +7,9 @@
 
 比替换 Y9H 数组→对象更稳定（不改数据结构，只改条件表达式）。
 
-锚点稳定性: Y9H 和参数名 (I, kA) 均为混淆产物，版本间会变。
-脚本通过上下文关键字 (getReasoningEffort, h9H.includes) 定位，
-若参数名变化导致精确匹配失败，需用正则适配。
+锚点稳定性: Y9H、h9H 和参数名 (I, kA) 均为混淆产物，版本间会变。
+脚本通过正则 V 匹配所有 JS 标识符，配合上下文关键字 (getReasoningEffort) 定位，
+h9H 不再硬编码，而是通过 V 模式动态匹配。
 """
 import re
 import sys
@@ -22,7 +22,7 @@ applied = 0
 
 # --- 修改点 1: enter-mission 的 Y9H.includes(X) ---
 # 上下文: getReasoningEffort();if(Y9H.includes(X)){if(!h9H
-pat1 = rb'(' + V + rb')\.includes\((' + V + rb')\)\)\{if\(!h9H'
+pat1 = rb'(' + V + rb')\.includes\((' + V + rb')\)\)\{if\(!' + V
 m1 = re.search(pat1, data)
 
 if m1:
@@ -41,7 +41,7 @@ if m1:
         sys.exit(1)
 else:
     # 检测是否已应用: !0 + 空格 + ){if(!h9H
-    if re.search(rb'!0\s+\)\{if\(!h9H', data):
+    if re.search(rb'!0\s+\)\{if\(!' + V, data):
         print("mod8a enter-mission 已应用，跳过")
         applied += 1
     else:
@@ -50,7 +50,7 @@ else:
 
 # --- 修改点 2: vO 回调的 Y9H.includes(X) ---
 # 上下文: if(!(Y9H.includes(X)&&h9H.includes(
-pat2 = rb'if\(!\((' + V + rb')\.includes\((' + V + rb')\)&&h9H\.includes\('
+pat2 = rb'if\(!\((' + V + rb')\.includes\((' + V + rb')\)&&' + V + rb'\.includes\('
 m2 = re.search(pat2, data)
 
 if m2:
@@ -64,7 +64,7 @@ if m2:
     applied += 1
 else:
     # 检测是否已应用: if(!(!0 + 空格 + &&h9H.includes(
-    if re.search(rb'if\(!\(!0\s+&&h9H\.includes\(', data):
+    if re.search(rb'if\(!\(!0\s+&&' + V + rb'\.includes\(', data):
         print("mod8b vO 回调已应用，跳过")
         applied += 1
     else:

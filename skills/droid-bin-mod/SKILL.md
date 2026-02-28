@@ -99,7 +99,7 @@ mod3 和 mod5 现在使用同一个变量控制：`aGR=4`
 - `slice(0,aGR)` - 截取前 aGR 行显示
 - `D>aGR&&` - 超过 aGR 行才显示提示
 
-修改 `aGR=4` → `aGR=99` 一次性解决 mod3 和 mod5，0 字节变化，不需要补偿。
+修改 `aGR=4` → `aGR=99` 一次性解决 mod3 和 mod5，+1 byte 变化（4→99 多一位数字），需要补偿。
 
 ## 修改原理
 
@@ -152,7 +152,7 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
   - `slice(0,aGR)` - 显示前多少行
   - `D>aGR&&` - 超过多少行显示提示
 - 修改变量定义，一次性解决两个问题
-- 0 字节变化，不需要补偿
+- +1 byte 变化（4→99 多一位数字），需要补偿
 
 ### 修改 4: diff/edit 显示行数
 
@@ -250,10 +250,23 @@ if(!(!0              &&h9H.includes(bR)))K("system",$7H,...)
 选择 Validator 模型 [1]:
 ```
 3. 默认推荐: Worker 用 `sessionDefaultSettings.model`，Validator 用第二个 custom model（如有）
-4. 写入 settings.json 顶层 `missionModelSettings` 字段
+4. 写入 settings.json 顶层 `missionModelSettings` 字段，格式如下：
+
+```json
+{
+  "missionModelSettings": {
+    "workerModel": "custom:Claude-Opus-4.6-0",
+    "workerReasoningEffort": "high",
+    "validationWorkerModel": "custom:GPT-5.3-Codex-1",
+    "validationWorkerReasoningEffort": "high"
+  }
+}
+```
+
+**注意**：值必须是字符串（model ID），不是对象。Key 名是 `validationWorkerModel`，不是 `validatorModel`。
 
 **稳定锚点**: 上下文关键字 `getReasoningEffort` + `h9H.includes` + `if(!(` 结构。
-变量名 `Y9H`、参数名 `I`/`kA` 均为混淆产物，版本间会变，脚本用正则 + 上下文定位。
+变量名 `Y9H`、`h9H`、参数名 `I`/`kA` 均为混淆产物，版本间会变，脚本用正则 + 上下文定位。
 
 ### 修改 6: Ctrl+N 只在 custom model 间切换
 
@@ -316,6 +329,7 @@ mod3 产生 +1 byte，需要用补偿脚本平衡。
 
 ```bash
 compensations/comp_substring.py <bytes>  # 范围：-9 到 +∞ bytes
+compensations/comp_r80_to_r8.py           # R=80→R=8 (-1 byte), 旧版本补偿方案
 ```
 
 用法：`python3 comp_substring.py -1` 补偿 mod3 的 +1 byte。
@@ -332,6 +346,7 @@ python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod2_command_length.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py  # +1 byte, 同时解决 mod5
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod6_custom_model_cycle.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod7_mission_gate.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod8_mission_model.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -1  # 补偿 -1 byte
@@ -478,4 +493,24 @@ near_marker=b'exec-preview', max_dist=1000  # 默认500
 
 ```bash
 cp ~/.local/bin/droid ~/.local/bin/droid.backup.$(~/.local/bin/droid --version)
+```
+
+### 6. mod6/7/8 排查
+
+**mod6** (custom model cycle):
+```bash
+# 检查方法名是否存在
+strings ~/.local/bin/droid | grep -E "peekNextCycleModel|cycleSpecModeModel|validateModelAccess"
+```
+
+**mod7** (mission 门控):
+```bash
+# 检查 EnableAGIMode 定义
+strings ~/.local/bin/droid | grep "enable_extra_mode"
+```
+
+**mod8** (mission 模型):
+```bash
+# 检查 includes + getReasoningEffort 上下文
+strings ~/.local/bin/droid | grep -E "getReasoningEffort|\.includes\("
 ```
