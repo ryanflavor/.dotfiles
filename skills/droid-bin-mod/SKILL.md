@@ -173,7 +173,7 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
 | 6   | model cycle  | peek/cycle 函数 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
 | 7   | mission 门控 | `enable_extra_mode`,`!1` | `enable_extra_mod0`,`!0` | 0 | /enter-mission 可用 |
-| 8   | mission 模型 | `Y9H=[...]` | `Y9H={includes:()=>!0}` | 0  | 白名单恒通过，不强切+不警告           |
+| 8   | mission 模型 | `Y9H.includes(X)` | `!0` + 空格填充 | 0  | 改条件而非数据，不强切+不警告         |
 | 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
 
 **注**：
@@ -182,7 +182,7 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 - mod6: 修改 `peekNextCycleModel`, `peekNextCycleSpecModeModel`, `cycleSpecModeModel` 三个函数
   （`cycleModel` 是委托函数，无需修改）
 - mod7: 改 `EnableAGIMode` 定义处的 statsigName + defaultValue
-- mod8: 改 enter-mission 内的 `.setModel(VCA,...)` 为当前模型变量
+- mod8: 两处 `Y9H.includes(X)` → `!0`（改条件，不改数据结构）
 
 ### 修改 7: Mission 门控破解
 
@@ -204,20 +204,32 @@ EnableAGIMode:{displayName:"Enable Extra Mode",statsigName:"enable_extra_mode",d
 
 ### 修改 8: Mission 模型白名单恒通过
 
-**位置**: Y9H 数组定义处
+**位置**: 两处 `Y9H.includes()` 调用
 
 **原始代码**:
 ```javascript
-Y9H=["gpt-5.2","gpt-5.3-codex","claude-opus-4-6","claude-opus-4-6-fast"]
+// enter-mission: 检查模型是否在白名单
+if(Y9H.includes(I)){if(!h9H.includes(D))B.setReasoningEffort(B7H)}
+else B.setModel(VCA,B7H),B.setReasoningEffort(B7H)
+
+// vO 回调: 模型切换时检查是否弹警告
+if(!(Y9H.includes(kA)&&h9H.includes(bR)))K("system",$7H,...)
 ```
 
-**修改**: 替换为 `{includes:()=>!0}` (空格填充至等长)
+**修改**: 将两处 `Y9H.includes(X)` 替换为 `!0` + 空格填充等长
 
-**原理**: `{includes:()=>!0}.includes(任何值)` 恒返回 `true`。一处改动同时解决:
-1. enter-mission 不强切模型 — `if(Y9H.includes(I))` 恒 true → else 分支永不执行
-2. 模型切换警告不触发 — `!(true && h9H.includes(bR))` → 只在 reasoning effort 不对时警告
+```javascript
+// enter-mission: 永远走 if 分支，不强切模型
+if(!0             ){if(!h9H.includes(D))B.setReasoningEffort(B7H)}
+else B.setModel(VCA,B7H),B.setReasoningEffort(B7H)  // 永远不执行
 
-Y9H 只被 `.includes()` 调用（无 `.length`/遍历/索引），替换为对象完全安全。
+// vO 回调: 等价于 if(!h9H.includes(bR))，只检查 effort
+if(!(!0              &&h9H.includes(bR)))K("system",$7H,...)
+```
+
+**原理**: 直接改条件表达式，不改数据结构（旧方案将 Y9H 数组替换为对象，存在运行时类型风险）。
+- enter-mission: custom model 保留，只在 reasoning effort 不对时修正
+- vO: 任意模型不再触发警告，只在 effort 不是 high/xhigh 时警告
 
 **配合 mod7**: 应用 mod7+mod8 后，读取 `~/.factory/settings.json` 中的 `customModels` 列表，
 让用户选择 Worker 和 Validator 模型，然后写入 `missionModelSettings`。
@@ -240,7 +252,8 @@ Y9H 只被 `.includes()` 调用（无 `.length`/遍历/索引），替换为对�
 3. 默认推荐: Worker 用 `sessionDefaultSettings.model`，Validator 用第二个 custom model（如有）
 4. 写入 settings.json 顶层 `missionModelSettings` 字段
 
-**稳定锚点**: `Y9H=["gpt-` — 数组内容是硬编码的模型 ID 字符串，版本间稳定。
+**稳定锚点**: 上下文关键字 `getReasoningEffort` + `h9H.includes` + `if(!(` 结构。
+变量名 `Y9H`、参数名 `I`/`kA` 均为混淆产物，版本间会变，脚本用正则 + 上下文定位。
 
 ### 修改 6: Ctrl+N 只在 custom model 间切换
 

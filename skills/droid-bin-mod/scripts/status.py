@@ -74,13 +74,23 @@ elif b'statsigName:"enable_extra_mode",defaultValue:!1' in data:
 else:
     results['mod7'] = 'unknown'
 
-# mod8: mission 模型白名单
-if b'Y9H={includes:()=>!0}' in data:
-    results['mod8'] = 'modified'
-elif b'Y9H=["gpt-' in data:
-    results['mod8'] = 'original'
-else:
-    results['mod8'] = 'unknown'
+# mod8: mission 模型白名单 (检测两处 includes → !0 替换，正则适配混淆变量名)
+def _mod8_detect():
+    # 原版: VAR.includes(X)){if(!h9H  和  if(!(VAR.includes(X)&&h9H.includes(
+    has_orig1 = bool(re.search(V + rb'\.includes\(' + V + rb'\)\)\{if\(!h9H', data))
+    has_orig2 = bool(re.search(rb'if\(!\(' + V + rb'\.includes\(' + V + rb'\)&&h9H\.includes\(', data))
+    # 已修改: !0 + 空格 + ){if(!h9H  和  if(!(!0 + 空格 + &&h9H.includes(
+    has_mod1 = bool(re.search(rb'!0\s+\)\{if\(!h9H', data))
+    has_mod2 = bool(re.search(rb'if\(!\(!0\s+&&h9H\.includes\(', data))
+    if has_mod1 and has_mod2:
+        return 'modified'
+    elif has_orig1 and has_orig2:
+        return 'original'
+    elif has_mod1 or has_mod2:
+        return 'partial'
+    return 'unknown'
+
+results['mod8'] = _mod8_detect()
 
 # 输出
 total = 8
