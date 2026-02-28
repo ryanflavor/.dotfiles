@@ -1,6 +1,6 @@
 ---
 name: droid-bin-mod
-description: 修改 droid 二进制以禁用截断。当用户提到：修改/恢复/测试 droid、press Ctrl+O、output truncated、显示完整命令或输出时触发。
+description: 修改 droid 二进制以禁用截断和解锁功能。当用户提到：修改/恢复/测试 droid、press Ctrl+O、output truncated、显示完整命令或输出、mission 门控时触发。
 ---
 
 # Droid Binary Modifier
@@ -50,10 +50,13 @@ mod3: 命令输出截断行数 4 行 → 99 行
 mod4: Edit diff 截断行数 20 行 → 99 行
 mod5: 输出区 "output truncated. press Ctrl+O" 提示 >4 行 → >99 行
 mod6: Ctrl+N 只在 custom model 间切换 (/model 菜单不受影响)
+mod7: Mission 门控破解 → /enter-mission 可用 (BYOK)
+mod8: Mission 模型不强切 → Orchestrator 保持 custom model
 
 注：mod1 影响命令框提示，mod5 影响输出区提示，两者位置不同
+注：mod7+mod8 配合 settings.json 中 missionModelSettings 设置 Worker/Validator 模型
 
-select: 1,2,3,4,5,6 / all / restore
+select: 1,2,3,4,5,6,7,8 / all / restore
 ```
 
 用户选择后，执行对应修改。
@@ -96,7 +99,7 @@ mod3 和 mod5 现在使用同一个变量控制：`aGR=4`
 - `slice(0,aGR)` - 截取前 aGR 行显示
 - `D>aGR&&` - 超过 aGR 行才显示提示
 
-修改 `aGR=4` → `aGR=99` 一次性解决 mod3 和 mod5，0 字节变化，不需要补偿。
+修改 `aGR=4` → `aGR=99` 一次性解决 mod3 和 mod5，+1 byte 变化（4→99 多一位数字），需要补偿。
 
 ## 修改原理
 
@@ -149,7 +152,7 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
   - `slice(0,aGR)` - 显示前多少行
   - `D>aGR&&` - 超过多少行显示提示
 - 修改变量定义，一次性解决两个问题
-- 0 字节变化，不需要补偿
+- +1 byte 变化（4→99 多一位数字），需要补偿
 
 ### 修改 4: diff/edit 显示行数
 
@@ -169,6 +172,8 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | 3+5 | 输出行数     | `aGR=4`      | `aGR=99`       | +1   | 输出显示 99 行，超过才显示提示            |
 | 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
 | 6   | model cycle  | peek/cycle 函数 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
+| 7   | mission 门控 | `enable_extra_mode`,`!1` | `enable_extra_mod0`,`!0` | 0 | /enter-mission 可用 |
+| 8   | mission 模型 | `Y9H.includes(X)` | `!0` + 空格填充 | 0  | 改条件而非数据，不强切+不警告         |
 | 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
 
 **注**：
@@ -176,6 +181,96 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 - mod3+5: 输出区行数和提示（output truncated）由同一变量控制
 - mod6: 修改 `peekNextCycleModel`, `peekNextCycleSpecModeModel`, `cycleSpecModeModel` 三个函数
   （`cycleModel` 是委托函数，无需修改）
+- mod7: 改 `EnableAGIMode` 定义处的 statsigName + defaultValue
+- mod8: 两处 `Y9H.includes(X)` → `!0`（改条件，不改数据结构）
+
+### 修改 7: Mission 门控破解
+
+**位置**: `EnableAGIMode` 定义处
+
+**原始代码**:
+```javascript
+EnableAGIMode:{displayName:"Enable Extra Mode",statsigName:"enable_extra_mode",defaultValue:!1}
+```
+
+**修改**:
+1. `statsigName:"enable_extra_mode"` → `"enable_extra_mod0"` (末尾 `e`→`0`)
+2. `defaultValue:!1` → `defaultValue:!0`
+
+**原理**: Statsig 查不到 `"enable_extra_mod0"` → 返回 `undefined` → `??` fallback 到 `!0`(true) → 门控通过。
+一处定义影响所有引用: `/enter-mission`、`/mission`、`/missions`、UI filter。
+
+**稳定锚点**: `EnableAGIMode`, `statsigName:"enable_extra_mode"`, `defaultValue:!1` — 均为字符串常量。
+
+### 修改 8: Mission 模型白名单恒通过
+
+**位置**: 两处 `Y9H.includes()` 调用
+
+**原始代码**:
+```javascript
+// enter-mission: 检查模型是否在白名单
+if(Y9H.includes(I)){if(!h9H.includes(D))B.setReasoningEffort(B7H)}
+else B.setModel(VCA,B7H),B.setReasoningEffort(B7H)
+
+// vO 回调: 模型切换时检查是否弹警告
+if(!(Y9H.includes(kA)&&h9H.includes(bR)))K("system",$7H,...)
+```
+
+**修改**: 将两处 `Y9H.includes(X)` 替换为 `!0` + 空格填充等长
+
+```javascript
+// enter-mission: 永远走 if 分支，不强切模型
+if(!0             ){if(!h9H.includes(D))B.setReasoningEffort(B7H)}
+else B.setModel(VCA,B7H),B.setReasoningEffort(B7H)  // 永远不执行
+
+// vO 回调: 等价于 if(!h9H.includes(bR))，只检查 effort
+if(!(!0              &&h9H.includes(bR)))K("system",$7H,...)
+```
+
+**原理**: 直接改条件表达式，不改数据结构（旧方案将 Y9H 数组替换为对象，存在运行时类型风险）。
+- enter-mission: custom model 保留，只在 reasoning effort 不对时修正
+- vO: 任意模型不再触发警告，只在 effort 不是 high/xhigh 时警告
+
+**配合 mod7**: 应用 mod7+mod8 后，检查 `~/.factory/settings.json` 配置完整性，
+确保 custom model 和 missionModelSettings 都正确配置。
+
+**交互流程**:
+1. 读取 settings.json 的 `customModels`，检查每个 custom model 是否有 `reasoningEffort` 字段：
+   - 如果缺少，提示用户：`custom model "XXX" 缺少 reasoningEffort 字段，建议设为 "high"，否则进入 mission 时会显示模型警告。是否自动添加？`
+   - 用户确认后写入（或用户手动指定值）
+   - 原因：droid 用 `customModels[].reasoningEffort` 作为模型的 `defaultReasoningEffort`，缺失时 fallback 到 `"none"`，导致 mission 模式 vO 回调警告触发
+2. 检查已有的 `missionModelSettings`
+3. 列出可选模型，显示当前配置，让用户选择:
+```
+当前 missionModelSettings:
+  Worker:    Claude Opus 4.6 [custom:Claude-Opus-4.6-0] (high)
+  Validator: GPT-5.3 Codex [custom:GPT-5.3-Codex-1] (high)
+
+可选模型:
+  0: Claude Opus 4.6  (custom:Claude-Opus-4.6-0)
+  1: GPT-5.3 Codex    (custom:GPT-5.3-Codex-1)
+
+选择 Worker 模型 [0]:
+选择 Validator 模型 [1]:
+```
+4. 默认推荐: Worker 用 `sessionDefaultSettings.model`，Validator 用第二个 custom model（如有）
+5. 写入 settings.json 顶层 `missionModelSettings` 字段，格式如下：
+
+```json
+{
+  "missionModelSettings": {
+    "workerModel": "custom:Claude-Opus-4.6-0",
+    "workerReasoningEffort": "high",
+    "validationWorkerModel": "custom:GPT-5.3-Codex-1",
+    "validationWorkerReasoningEffort": "high"
+  }
+}
+```
+
+**注意**：值必须是字符串（model ID），不是对象。Key 名是 `validationWorkerModel`，不是 `validatorModel`。
+
+**稳定锚点**: 上下文关键字 `getReasoningEffort` + `h9H.includes` + `if(!(` 结构。
+变量名 `Y9H`、`h9H`、参数名 `I`/`kA` 均为混淆产物，版本间会变，脚本用正则 + 上下文定位。
 
 ### 修改 6: Ctrl+N 只在 custom model 间切换
 
@@ -228,6 +323,8 @@ mods/mod3_output_lines.py        # 输出行数 aGR=4→99 (+1 byte, 同时解�
 mods/mod4_diff_lines.py          # diff行数 20→99 (0 bytes)
 mods/mod5_exec_hint.py           # 由 mod3 自动处理
 mods/mod6_custom_model_cycle.py  # Ctrl+N 只切换 custom model (0 bytes)
+mods/mod7_mission_gate.py        # Mission 门控破解 (0 bytes)
+mods/mod8_mission_model.py       # Mission 模型不强切 (0 bytes)
 ```
 
 mod3 产生 +1 byte，需要用补偿脚本平衡。
@@ -236,6 +333,7 @@ mod3 产生 +1 byte，需要用补偿脚本平衡。
 
 ```bash
 compensations/comp_substring.py <bytes>  # 范围：-9 到 +∞ bytes
+compensations/comp_r80_to_r8.py           # R=80→R=8 (-1 byte), 旧版本补偿方案
 ```
 
 用法：`python3 comp_substring.py -1` 补偿 mod3 的 +1 byte。
@@ -252,6 +350,9 @@ python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod2_command_length.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py  # +1 byte, 同时解决 mod5
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod6_custom_model_cycle.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod7_mission_gate.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod8_mission_model.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -1  # 补偿 -1 byte
 
 # 3. macOS: 重新签名
@@ -396,4 +497,24 @@ near_marker=b'exec-preview', max_dist=1000  # 默认500
 
 ```bash
 cp ~/.local/bin/droid ~/.local/bin/droid.backup.$(~/.local/bin/droid --version)
+```
+
+### 6. mod6/7/8 排查
+
+**mod6** (custom model cycle):
+```bash
+# 检查方法名是否存在
+strings ~/.local/bin/droid | grep -E "peekNextCycleModel|cycleSpecModeModel|validateModelAccess"
+```
+
+**mod7** (mission 门控):
+```bash
+# 检查 EnableAGIMode 定义
+strings ~/.local/bin/droid | grep "enable_extra_mode"
+```
+
+**mod8** (mission 模型):
+```bash
+# 检查 includes + getReasoningEffort 上下文
+strings ~/.local/bin/droid | grep -E "getReasoningEffort|\.includes\("
 ```

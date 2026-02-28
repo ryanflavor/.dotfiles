@@ -2,15 +2,14 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`、`cr-cleanup.sh`、`kill-server`
-- 不要执行 `cr-spawn.sh orchestrator`
+- 不要直接操作 tmux
 
 ## 概述
 
 让 Claude 和 GPT 讨论分歧，Orchestrator 做消息中继。
 
 ```
-Claude tmux ←── Orchestrator (中继) ──→ GPT tmux
+Claude ←── Orchestrator (中继) ──→ GPT
 ```
 
 Orchestrator 读 Claude 的回复，转发给 GPT；读 GPT 的回复，转发给 Claude。最多 5 轮。
@@ -44,7 +43,6 @@ for ROUND in $(seq 1 $MAX_ROUNDS); do
     CONTEXT="## GPT's Response (Round $PREV)\n$(cat "$CR_WORKSPACE/results/gpt-crosscheck-round${PREV}.md")"
   fi
 
-  # Write task header (quoted heredoc — no shell expansion)
   cat > "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md" << 'TASK'
 <system-instruction>
 你是 claude，cross-review 审查者。
@@ -53,11 +51,9 @@ for ROUND in $(seq 1 $MAX_ROUNDS); do
 # Cross-Check Task
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
-注意：先创建或更新交叉确认的 PR 评论！
 
 TASK
 
-  # Append context (agent output — must NOT go through heredoc expansion)
   printf '%s\n' "$CONTEXT" >> "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
 
   cat >> "$CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md" << TASK_FOOTER
@@ -68,15 +64,13 @@ Write to: $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.md
 When done: touch $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.done
 TASK_FOOTER
 
-  tmux -S "$CR_SOCKET" send-keys -t claude:0.0 -l "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
-  tmux -S "$CR_SOCKET" send-keys -t claude:0.0 Enter
+  mission type claude "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md" -t "$CR_TEAM"
 
-  $HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude "crosscheck-round${ROUND}" 300
+  mission wait claude "crosscheck-round${ROUND}" -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 300
 
   # === GPT 回应 ===
   CLAUDE_RESPONSE=$(cat "$CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.md")
 
-  # Write task header (quoted heredoc — no shell expansion)
   cat > "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md" << 'TASK'
 <system-instruction>
 你是 gpt，cross-review 审查者。
@@ -85,12 +79,10 @@ TASK_FOOTER
 # Cross-Check Response
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
-注意：更新交叉确认的 PR 评论，追加你的分析！
 
 Claude's analysis:
 TASK
 
-  # Append Claude's response (agent output — must NOT go through heredoc expansion)
   printf '%s\n' "$CLAUDE_RESPONSE" >> "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
 
   cat >> "$CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md" << TASK_FOOTER
@@ -100,13 +92,11 @@ Write to: $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.md
 When done: touch $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.done
 TASK_FOOTER
 
-  tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 -l "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
-  tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 Enter
+  mission type gpt "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md" -t "$CR_TEAM"
 
-  $HOME/.factory/skills/cross-review/scripts/cr-wait.sh gpt "crosscheck-round${ROUND}" 300
+  mission wait gpt "crosscheck-round${ROUND}" -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 300
 
   # === Orchestrator 判断是否达成共识 ===
-  # 读取双方本轮结果，分析是否所有问题都有一致判断
   CLAUDE_ROUND=$(cat "$CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.md")
   GPT_ROUND=$(cat "$CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.md")
 
@@ -129,7 +119,6 @@ done
 ## 结果处理
 
 ```bash
-# 写入最终交叉确认结果
 cat > "$CR_WORKSPACE/results/crosscheck-summary.md" << 'SUMMARY'
 | Issue | Status | Detail |
 |-------|--------|--------|

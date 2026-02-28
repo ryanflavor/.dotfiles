@@ -1,16 +1,15 @@
 # 阶段 1: 并行 PR 审查 - Orchestrator
 
-## 前置条件（CI 已完成）
+## 前置条件
 
-- Workspace `$CR_WORKSPACE` 已创建，state 文件已写入
-- tmux socket `$CR_SOCKET` 已就绪
-- 你在 tmux orchestrator session 中运行
+- 调用方已通过 `mission create --workspace ... --state ...` 初始化 workspace
+- `$CR_WORKSPACE` 和 `$CR_TEAM` 环境变量已设置
+- mission team 已创建（`mission create "$CR_TEAM" ...`）
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`（workspace 已就绪）
-- 不要执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
-- 不要执行 `cr-cleanup.sh` 或 `kill-server`（CI 负责清理）
+- 不要重新执行 `mission create`（调用方已完成）
+- 不要直接操作 tmux
 
 ## 概述
 
@@ -21,12 +20,22 @@
 ```bash
 echo "1" > "$CR_WORKSPACE/state/stage"
 
+# 检测 orchestrator 自身的 session ID（必须在 spawn 前执行，此时最新 session 就是自己）
+ORCH_SESSION=$(python3 -c "
+import os, pathlib
+cwd = os.getcwd()
+d = pathlib.Path.home() / '.factory' / 'sessions' / ('-' + cwd.lstrip('/').replace('/', '-'))
+f = max(d.glob('*.settings.json'), key=lambda p: p.stat().st_birthtime)
+print(f.name.removesuffix('.settings.json'))
+")
+echo "$ORCH_SESSION" > "$CR_WORKSPACE/state/orch-session"
+
 MODEL_CLAUDE="${CR_MODEL_CLAUDE:-custom:claude-opus-4-6}"
 MODEL_GPT="${CR_MODEL_GPT:-custom:gpt-5.3-codex}"
 
-# 启动两个 Agent（仅 claude 和 gpt，不要 spawn orchestrator）
-$HOME/.factory/skills/cross-review/scripts/cr-spawn.sh claude "$MODEL_CLAUDE"
-$HOME/.factory/skills/cross-review/scripts/cr-spawn.sh gpt "$MODEL_GPT"
+# 启动两个 Agent
+mission spawn claude -t "$CR_TEAM" -m "$MODEL_CLAUDE" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
+mission spawn gpt -t "$CR_TEAM" -m "$MODEL_GPT" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
 ```
 
 ## 发送任务
@@ -53,7 +62,6 @@ You are reviewing PR #$PR_NUMBER in $REPO ($BRANCH → $BASE).
 ## Instructions
 
 Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review guidelines.
-注意：先创建占位评论！
 
 ## Context
 
@@ -65,22 +73,19 @@ Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review
 
 ## Required Output
 
-1. Post a PR comment (placeholder first, then update with findings)
-2. Write review findings to: $CR_WORKSPACE/results/${AGENT}-r1.md
-3. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
+1. Write review findings to: $CR_WORKSPACE/results/${AGENT}-r1.md
+2. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
 EOF
 
-  # Send to agent (NOTE: -l and Enter must be separate send-keys calls)
-  tmux -S "$CR_SOCKET" send-keys -t "$AGENT":0.0 -l "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
-  tmux -S "$CR_SOCKET" send-keys -t "$AGENT":0.0 Enter
+  mission type "$AGENT" "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md" -t "$CR_TEAM"
 done
 ```
 
 ## 等待
 
 ```bash
-$HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude r1 600 &
-$HOME/.factory/skills/cross-review/scripts/cr-wait.sh gpt r1 600 &
+mission wait claude r1 -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 600 &
+mission wait gpt r1 -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 600 &
 wait
 ```
 
