@@ -52,11 +52,13 @@ mod5: 输出区 "output truncated. press Ctrl+O" 提示 >4 行 → >99 行
 mod6: Ctrl+N 只在 custom model 间切换 (/model 菜单不受影响)
 mod7: Mission 门控破解 → /enter-mission 可用 (BYOK)
 mod8: Mission 模型不强切 → Orchestrator 保持 custom model
+mod9: Custom model 支持完整 effort 级别 (anthropic: max, openai: xhigh)
 
 注：mod1 影响命令框提示，mod5 影响输出区提示，两者位置不同
 注：mod7+mod8 配合 settings.json 中 missionModelSettings 设置 Worker/Validator 模型
+注：mod9 修复 custom model Tab 切换只有 off/low/medium/high 的限制
 
-select: 1,2,3,4,5,6,7,8 / all / restore
+select: 1,2,3,4,5,6,7,8,9 / all / restore
 ```
 
 用户选择后，执行对应修改。
@@ -174,7 +176,8 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | 6   | model cycle  | peek/cycle 函数 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
 | 7   | mission 门控 | `enable_extra_mode`,`!1` | `enable_extra_mod0`,`!0` | 0 | /enter-mission 可用 |
 | 8   | mission 模型 | `Y9H.includes(X)` | `!0` + 空格填充 | 0  | 改条件而非数据，不强切+不警告         |
-| 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
+| 9   | effort 级别  | `["off","low","medium","high"]` | 按 provider 区分 | +66 | anthropic 加 max，openai 加 xhigh |
+| 补偿 | 死代码区域   | 多处死代码   | 注释/缩短填充   | -67  | 统一补偿 mod3(+1) + mod9(+66)        |
 
 **注**：
 - mod1: 命令框提示（command truncated）
@@ -183,6 +186,7 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
   （`cycleModel` 是委托函数，无需修改）
 - mod7: 改 `EnableAGIMode` 定义处的 statsigName + defaultValue
 - mod8: 两处 `Y9H.includes(X)` → `!0`（改条件，不改数据结构）
+- mod9: wR() 中 custom model 分支，根据 T.provider 返回正确的 effort 列表
 
 ### 修改 7: Mission 门控破解
 
@@ -310,6 +314,43 @@ peekNextCycleModel(H){
 - `this.validateModelAccess` / `.allowed` — 方法和属性名
 - `this.customModels` — 属性名
 
+### 修改 9: Custom model 完整 effort 级别
+
+**位置**: `wR()` 函数中 custom model 分支
+
+**问题**: wR() 对 custom model 硬编码 `supportedReasoningEfforts` 为 `["off","low","medium","high"]`，
+缺少 anthropic 的 `"max"` 和 openai 的 `"xhigh"`，导致 Tab 切换无法到达这些级别。
+
+**原始代码**:
+```javascript
+supportedReasoningEfforts:L?["off","low","medium","high"]:["none"]
+```
+
+**修改**:
+```javascript
+supportedReasoningEfforts:L?T.provider=="openai"?["none","low","medium","high","xhigh"]:["off","low","medium","high","max"]:["none"]
+```
+
+**效果**:
+- Anthropic custom model: `off → low → medium → high → max → off ...`
+- OpenAI custom model: `none → low → medium → high → xhigh → none ...`
+
+**字节**: +66 bytes，由 `comp_universal.py` 统一补偿。
+
+**稳定锚点**: `supportedReasoningEfforts`、`T.provider`、`["off","low","medium","high"]` — 均为字符串常量。
+
+**配合 mod9**: 应用 mod9 后，检查 `~/.factory/settings.json` 中 `extraArgs` 的 effort 相关参数。
+mod9 解锁了完整 effort 级别后，extraArgs 中的 effort 参数已冗余，且会导致副作用。
+
+**交互流程**:
+1. 运行 `status.py` 检查配置
+2. 如果发现 extraArgs 中有 effort 相关参数，询问用户是否移除，并说明：
+   - Anthropic: `extraArgs.thinking` 和 `extraArgs.output_config.effort` 已不需要
+   - OpenAI: `extraArgs.reasoning.effort` 已不需要（`reasoning.summary` 可保留）
+   - **不移除的后果**: 当 Tab 切换 Thinking Level 到 off/none 时，本想关闭思考，
+     但 extraArgs 会接管并重新开启思考，导致思考无法真正关闭
+3. 用户确认后修改 settings.json
+
 ## 修改脚本
 
 脚本位置: `~/.factory/skills/droid-bin-mod/scripts/`
@@ -324,20 +365,30 @@ mods/mod4_diff_lines.py          # diff行数 20→99 (0 bytes)
 mods/mod5_exec_hint.py           # 由 mod3 自动处理
 mods/mod6_custom_model_cycle.py  # Ctrl+N 只切换 custom model (0 bytes)
 mods/mod7_mission_gate.py        # Mission 门控破解 (0 bytes)
-mods/mod8_mission_model.py       # Mission 模型不强切 (0 bytes)
+mods/mod8_mission_model.py             # Mission 模型不强切 (0 bytes)
+mods/mod9_custom_effort_levels.py      # custom model effort 级别 (+66 bytes)
 ```
 
-mod3 产生 +1 byte，需要用补偿脚本平衡。
+mod3 产生 +1 byte，mod9 产生 +66 bytes，合计 +67 bytes。
+由 `comp_universal.py 67` 统一补偿。
 
 ### compensations/ - 字节补偿
 
 ```bash
-compensations/comp_substring.py <bytes>  # 范围：-9 到 +∞ bytes
-compensations/comp_r80_to_r8.py           # R=80→R=8 (-1 byte), 旧版本补偿方案
+compensations/comp_universal.py          # 通用补偿，利用所有 mod 的死代码区域 (~249B 可用)
+compensations/comp_universal.py          # 无参数: 显示当前可用补偿空间
+compensations/comp_universal.py <bytes>  # 缩减指定字节数
+compensations/comp_substring.py <bytes>  # 旧方案：仅修改 FFH 函数的 substring
+compensations/comp_r80_to_r8.py          # 旧方案：R=80→R=8 (-1 byte)
 ```
 
-用法：`python3 comp_substring.py -1` 补偿 mod3 的 +1 byte。
-原理：修改被 mod1 短路的 `substring` 函数名长度，该代码永远不执行。
+用法：`python3 comp_universal.py 67` 补偿 mod3(+1) + mod9(+66) 的 +67 bytes。
+
+补偿区域来源 (由各 mod 短路/替换产生的死代码):
+- FFH 死代码 (mod1 短路): ~151B — 截断函数被短路后的不可达代码，替换为 `;return{text:H,isTruncated:!1}`
+- mod8 else 分支: ~44B — enter-mission 永不执行的 else
+- mod8 空格填充: ~25B — !0 替换后的空格
+- mod6 注释: ~36B — validateModelAccess 注释掉的检查
 
 ### 执行示例（跨平台）
 
@@ -348,12 +399,13 @@ compensations/comp_r80_to_r8.py           # R=80→R=8 (-1 byte), 旧版本补�
 # 2. 执行修改
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod2_command_length.py
-python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py  # +1 byte, 同时解决 mod5
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py       # +1 byte
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod6_custom_model_cycle.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod7_mission_gate.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod8_mission_model.py
-python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -1  # 补偿 -1 byte
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod9_custom_effort_levels.py  # +66 bytes
+python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_universal.py 67  # 补偿 mod3(+1) + mod9(+66)
 
 # 3. macOS: 重新签名
 [[ "$OSTYPE" == "darwin"* ]] && codesign -s - ~/.local/bin/droid
@@ -499,7 +551,7 @@ near_marker=b'exec-preview', max_dist=1000  # 默认500
 cp ~/.local/bin/droid ~/.local/bin/droid.backup.$(~/.local/bin/droid --version)
 ```
 
-### 6. mod6/7/8 排查
+### 6. mod6/7/8/9 排查
 
 **mod6** (custom model cycle):
 ```bash
@@ -517,4 +569,11 @@ strings ~/.local/bin/droid | grep "enable_extra_mode"
 ```bash
 # 检查 includes + getReasoningEffort 上下文
 strings ~/.local/bin/droid | grep -E "getReasoningEffort|\.includes\("
+```
+
+**mod9** (effort 级别):
+```bash
+# 检查 effort 列表
+strings ~/.local/bin/droid | grep "supportedReasoningEfforts"
+strings ~/.local/bin/droid | grep -E '\["off","low","medium","high"\]'
 ```
