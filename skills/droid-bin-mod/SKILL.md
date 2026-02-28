@@ -346,10 +346,12 @@ mod9 解锁了完整 effort 级别后，extraArgs 中的 effort 参数已冗余�
 1. 运行 `status.py` 检查配置
 2. 如果发现 extraArgs 中有 effort 相关参数，询问用户是否移除，并说明：
    - Anthropic: `extraArgs.thinking` 和 `extraArgs.output_config.effort` 已不需要
-   - OpenAI: `extraArgs.reasoning.effort` 已不需要（`reasoning.summary` 可保留）
+   - OpenAI: `extraArgs.reasoning.effort` 已不需要（`reasoning.summary`、`text.verbosity` 可保留）
    - **不移除的后果**: 当 Tab 切换 Thinking Level 到 off/none 时，本想关闭思考，
      但 extraArgs 会接管并重新开启思考，导致思考无法真正关闭
-3. 用户确认后修改 settings.json
+3. 用户确认后修改 settings.json：
+   - Anthropic: 移除 `thinking` + `output_config.effort`；如果 extraArgs 变为空对象 `{}`，删除整个 `extraArgs` 字段
+   - OpenAI: 移除 `reasoning.effort`（保留 `reasoning.summary`）；如有 `text.verbosity` 也保留
 
 ## 修改脚本
 

@@ -183,7 +183,12 @@ else:
                         issues.append('缺少 reasoningEffort (建议 "high")')
                     reasoning = extra.get('reasoning', {})
                     if reasoning.get('effort'):
-                        keep_note = '，reasoning.summary 可保留' if reasoning.get('summary') else ''
+                        keep_parts = []
+                        if reasoning.get('summary'):
+                            keep_parts.append('reasoning.summary')
+                        if extra.get('text', {}).get('verbosity'):
+                            keep_parts.append('text.verbosity')
+                        keep_note = '，' + '、'.join(keep_parts) + ' 可保留' if keep_parts else ''
                         issues.append(
                             f'extraArgs 中的 reasoning.effort 已不需要'
                             '（Droid 内置 reasoningEffort 已接管'
