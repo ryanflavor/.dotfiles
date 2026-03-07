@@ -36,6 +36,10 @@ PY
   fi
 }
 
+utc_timestamp_ms() {
+  "$PYTHON3_BIN" -c "from datetime import datetime,timezone;t=datetime.now(timezone.utc);print(t.strftime('%Y-%m-%dT%H:%M:%S.')+f'{t.microsecond//1000:03d}Z')" 2>/dev/null
+}
+
 log() { /usr/bin/printf '%s %s\n' "$(timestamp)" "$*" >> "$LOG"; }
 
 read_file()  { /bin/cat "$STATE_DIR/$1" 2>/dev/null; }
@@ -138,12 +142,12 @@ case "$1" in
     if [ -n "$pane" ]; then
       write_file mode tmux
       write_file pane_id "$pane"
-      save_ts="$(/bin/date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+      save_ts="$(utc_timestamp_ms)"
       write_file save_ts "$save_ts"
       log "save mode=tmux pane=${pane} app=${front_bundle} save_ts=${save_ts}"
     else
       write_file mode gui
-      save_ts="$(/bin/date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+      save_ts="$(utc_timestamp_ms)"
       write_file save_ts "$save_ts"
       log "save mode=gui app=${front_bundle} save_ts=${save_ts}"
     fi
