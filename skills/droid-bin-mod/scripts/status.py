@@ -13,21 +13,13 @@ with open(droid, 'rb') as f:
 results = {}
 
 # mod1: 截断条件
-# 检测 if(!0||! 短路 (mod1 原始形态)
-# 或 comp_universal 补偿后的直接 return 形态 (FFH 中原始条件 if(!V&&!V) 被移除)
+# 用 isTruncated 定位截断函数（不依赖混淆后的函数名）
+# 原版: if(!V&&!V)return{text:V,isTruncated:!1}
+# 修改: if(!0||!V)return{text:V,isTruncated:!1}
 if b'if(!0||!' in data:
     results['mod1'] = 'modified'
-elif b'function FFH(' in data:
-    ffh = data.find(b'function FFH(')
-    ffh_region = data[ffh:ffh + 300]
-    has_orig_cond = re.search(rb'if\(!' + V + rb'&&!' + V + rb'\)', ffh_region)
-    has_direct_return = b'return{text:H,isTruncated:!1}' in ffh_region
-    if not has_orig_cond and has_direct_return:
-        results['mod1'] = 'modified'  # comp_universal 补偿后，原始条件已移除
-    elif has_orig_cond:
-        results['mod1'] = 'original'
-    else:
-        results['mod1'] = 'unknown'
+elif re.search(rb'if\(!' + V + rb'&&!' + V + rb'\)return\{text:' + V + rb',isTruncated:!1\}', data):
+    results['mod1'] = 'original'
 else:
     results['mod1'] = 'unknown'
 
@@ -39,21 +31,21 @@ elif b'command.length>50' in data:
 else:
     results['mod2'] = 'unknown'
 
-# mod3+mod5: 输出行数 (VAR=4/99,VAR2=5,VAR3=200)
-if re.search(V + rb'=99,' + V + rb'=5,' + V + rb'=200', data):
+# mod3+mod5: 输出行数 (VAR=VAR?8:4 / VAR=99||4)
+if re.search(V + rb'=99\|\|4', data):
     results['mod3'] = 'modified'
     results['mod5'] = 'modified'
-elif re.search(V + rb'=4,' + V + rb'=5,' + V + rb'=200', data):
+elif re.search(V + rb'=' + V + rb'\?8:4', data):
     results['mod3'] = 'original'
     results['mod5'] = 'original'
 else:
     results['mod3'] = 'unknown'
     results['mod5'] = 'unknown'
 
-# mod4: diff行数
-if re.search(rb'var ' + V + rb'=99,' + V + rb',', data):
+# mod4: diff行数 (var VAR=20/99,VAR)
+if re.search(rb'var ' + V + rb'=99,' + V, data):
     results['mod4'] = 'modified'
-elif re.search(rb'var ' + V + rb'=20,' + V + rb',', data):
+elif re.search(rb'var ' + V + rb'=20,' + V, data):
     results['mod4'] = 'original'
 else:
     results['mod4'] = 'unknown'
@@ -77,13 +69,7 @@ def _mod6_detect():
 
 results['mod6'] = _mod6_detect()
 
-# mod7: mission 门控
-if b'statsigName:"enable_extra_mod0",defaultValue:!0' in data:
-    results['mod7'] = 'modified'
-elif b'statsigName:"enable_extra_mode",defaultValue:!1' in data:
-    results['mod7'] = 'original'
-else:
-    results['mod7'] = 'unknown'
+# mod7: 已移除 (v0.71.0 起 mission 门控默认开放)
 
 # mod8: mission 模型白名单
 def _mod8_detect():
@@ -101,39 +87,25 @@ def _mod8_detect():
 
 results['mod8'] = _mod8_detect()
 
-# mod9: custom model effort 级别
-if b'T.provider=="openai"' in data and b'["off","low","medium","high","max"]' in data:
+# mod9: custom model effort 级别 (两个代码路径)
+# 路径1: KOH 函数 (模型列表构建) — T.provider=="openai" 区分
+# 路径2: $A 函数 (单模型解析) — 统一加 ,"max"
+mod9_p1 = b'T.provider=="openai"' in data and b'["off","low","medium","high","max"]' in data
+mod9_p2 = b'"high","max"]:["none"],defaultReasoningEffort:R' in data
+mod9_p1_orig = b'supportedReasoningEfforts:L?["off","low","medium","high"]:["none"]' in data
+mod9_p2_orig = b'supportedReasoningEfforts:B?["off","low","medium","high"]:["none"],defaultReasoningEffort:R.reasoningEffort' in data
+
+if mod9_p1 and mod9_p2:
     results['mod9'] = 'modified'
-elif b'supportedReasoningEfforts:L?["off","low","medium","high"]:["none"]' in data:
+elif mod9_p1_orig and mod9_p2_orig:
     results['mod9'] = 'original'
+elif mod9_p1 and mod9_p2_orig:
+    results['mod9'] = 'partial'  # 只改了路径1，$A 函数未修改
 else:
     results['mod9'] = 'unknown'
 
-# mod10: mission API key 认证 (双点检测)
-def _mod10_detect():
-    # Patch A: access_token fallback to FACTORY_API_KEY
-    _a_mod = b'||process.env.FACTORY_API_KEY;' in data and b'No access token available' in data
-    _a_orig = bool(re.search(
-        rb'\?\.access_token\?\.trim\(\);if\(!' + V + rb'\)throw.*?No access token available', data
-    )) and not _a_mod
-    # Patch B: (VAR||VAR)?.startsWith → API key 路由
-    _b_mod = bool(re.search(
-        rb'\(' + V + rb'\|\|' + V + rb'\)\?\.startsWith\(' + V + rb'\)\)return ' + V + rb'\(', data))
-    _b_orig = bool(re.search(
-        V + rb'\?\.startsWith\(' + V + rb'\)\)return ' + V + rb'\(' + V + rb','
-        + V + rb'\);if\(' + V + rb'\)return', data)) and not _b_mod
-    if _a_mod and _b_mod:
-        return 'modified'
-    elif _a_orig and _b_orig:
-        return 'original'
-    elif _a_mod or _b_mod:
-        return 'partial'
-    return 'unknown'
-
-results['mod10'] = _mod10_detect()
-
 # 输出
-total = 10
+total = 8  # mod7 已移除
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 
@@ -238,8 +210,8 @@ else:
                 ve = mission.get('validationWorkerReasoningEffort', '')
                 print(f"    Worker:    {wm} ({we})" + (" ⚠ 不在 customModels 中" if wm and wm not in model_ids else ""))
                 print(f"    Validator: {vm} ({ve})" + (" ⚠ 不在 customModels 中" if vm and vm not in model_ids else ""))
-            elif results.get('mod7') == 'modified' or results.get('mod8') == 'modified':
-                print(f"\n  ⚠ mod7/mod8 已启用但缺少 missionModelSettings")
+            elif results.get('mod8') == 'modified':
+                print(f"\n  ⚠ mod8 已启用但缺少 missionModelSettings")
                 print(f"    → 建议配置 workerModel / validationWorkerModel 指向 custom model")
 
             if not warnings:
