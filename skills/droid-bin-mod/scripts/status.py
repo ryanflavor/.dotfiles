@@ -89,9 +89,10 @@ results['mod8'] = _mod8_detect()
 
 # mod9: custom model effort 级别 (两个代码路径)
 # 路径1: KOH 函数 (模型列表构建) — T.provider=="openai" 区分
-# 路径2: $A 函数 (单模型解析) — 统一加 ,"max"
+# 路径2: $A 函数 (单模型解析) — 必须同样按 provider 区分，否则 Ctrl+N/setModel 会丢 xhigh
 mod9_p1 = b'T.provider=="openai"' in data and b'["off","low","medium","high","max"]' in data
-mod9_p2 = b'"high","max"]:["none"],defaultReasoningEffort:R' in data
+mod9_p2 = b'R.provider=="openai"?["none","low","medium","high","xhigh"]:["off","low","medium","high","max"]:["none"],defaultReasoningEffort:R.reasoningEffort' in data
+mod9_p2_partial = b'"high","max"]:["none"],defaultReasoningEffort:R' in data
 mod9_p1_orig = b'supportedReasoningEfforts:L?["off","low","medium","high"]:["none"]' in data
 mod9_p2_orig = b'supportedReasoningEfforts:B?["off","low","medium","high"]:["none"],defaultReasoningEffort:R.reasoningEffort' in data
 
@@ -99,8 +100,8 @@ if mod9_p1 and mod9_p2:
     results['mod9'] = 'modified'
 elif mod9_p1_orig and mod9_p2_orig:
     results['mod9'] = 'original'
-elif mod9_p1 and mod9_p2_orig:
-    results['mod9'] = 'partial'  # 只改了路径1，$A 函数未修改
+elif mod9_p1 and (mod9_p2_orig or mod9_p2_partial):
+    results['mod9'] = 'partial'
 else:
     results['mod9'] = 'unknown'
 
