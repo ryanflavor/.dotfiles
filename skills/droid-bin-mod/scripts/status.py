@@ -137,8 +137,18 @@ elif OLD_BUILTIN in data:
 else:
     results['mod10'] = 'unknown'
 
+# mod11: subagent spawn 修复 (process.argv[0] → process.execPath)
+if b'process.execPath,baseArgs:[]' in data:
+    results['mod11'] = 'modified'
+elif b'function ujD(){let' in data and b'process.argv[0]' in data:
+    results['mod11'] = 'original'
+elif b'process.execPath).includes("droid")' in data:
+    results['mod11'] = 'n/a'  # 0.76.0 及更早版本不需要
+else:
+    results['mod11'] = 'unknown'
+
 # 输出
-total = 10
+total = 11
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 na_count   = sum(1 for v in results.values() if v == 'n/a')
@@ -148,7 +158,7 @@ print(f"droid 状态:\n")
 for name, status in results.items():
     icon  = '✓' if status == 'modified' else '○' if status == 'original' else '△' if status == 'partial' else '-' if status == 'n/a' else '?'
     label = {'modified': '已修改', 'original': '原版', 'partial': '部分', 'unknown': '未知', 'n/a': '不适用'}[status]
-    note  = ' (由 mod3 控制)' if name == 'mod5' else ' (v0.74+: 门控已移除，/enter-mission 直接可用)' if status == 'n/a' and name == 'mod7' else ''
+    note  = ' (由 mod3 控制)' if name == 'mod5' else ' (v0.74+: 门控已移除，/enter-mission 直接可用)' if status == 'n/a' and name == 'mod7' else ' (0.76.0 及更早: 不需要)' if status == 'n/a' and name == 'mod11' else ''
     print(f"  {icon} {name}: {label}{note}")
 
 print()
