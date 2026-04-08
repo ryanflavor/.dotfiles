@@ -147,8 +147,44 @@ elif b'process.execPath).includes("droid")' in data:
 else:
     results['mod11'] = 'unknown'
 
+# mod12: mission worker effort 从 settings 读取 (不再硬编码 "high")
+# 修改后特征: ...WorkerModel(),E=L?A.getMissionValidationWorkerReasoningEffort():A.getMissionWorkerReasoningEffort()
+MOD12_SIG = b'getMissionValidationWorkerReasoningEffort():' + V.replace(rb'[', b'').replace(rb']', b'').encode() if isinstance(V, str) else b''
+# 直接用完整特征匹配
+if b'WorkerModel(),E=L?A.getMissionValidationWorkerReasoningEffort():A.getMissionWorkerReasoningEffort()' in data:
+    results['mod12'] = 'modified'
+elif re.search(rb'WorkerModel\(\),' + V + rb'=\(BD\(' + V + rb'\)\.supportedReasoningEfforts', data):
+    results['mod12'] = 'original'
+else:
+    results['mod12'] = 'unknown'
+
+# mod14: summarizer OpenAI → ChatCompletions fallback
+# mod15 会将死代码区 return(...) 替换为 return null;，需同时兼容
+if (b'provider==="openai"&&!1)return(' in data or b'provider==="openai"&&!1)return null;' in data) and b'N.provider==="generic-chat-completion-api"||' in data:
+    results['mod14'] = 'modified'
+elif b'provider==="openai")return(' in data and b'responses.create' in data:
+    results['mod14'] = 'original'
+else:
+    results['mod14'] = 'unknown'
+
+# mod15: YcM partial JSON parser Unicode escape fix
+if b'default:M=="u"?(A+=String.fromCharCode' in data and b'default:I=="u"?(A+=String.fromCharCode' in data:
+    results['mod15'] = 'modified'
+elif b'default:A+=M;break}}else A+=H[' in data and b'default:A+=I;break}}else A+=H[' in data:
+    results['mod15'] = 'original'
+else:
+    results['mod15'] = 'unknown'
+
+# mod16: wU$ 预处理修复 proxy 发送无反斜杠 uXXXX 的 bug
+if b'H=H.replace(/(?<!\\\\)u([0-9a-fA-F]{4})/g,' in data:
+    results['mod16'] = 'modified'
+elif b'function wU$(H){if(!H.trim())return{data:{},isComplete:!1};try{' in data:
+    results['mod16'] = 'original'
+else:
+    results['mod16'] = 'unknown'
+
 # 输出
-total = 11
+total = 15
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 na_count   = sum(1 for v in results.values() if v == 'n/a')

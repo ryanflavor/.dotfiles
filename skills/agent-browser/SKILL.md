@@ -6,6 +6,12 @@ allowed-tools: Bash(npx agent-browser:*), Bash(agent-browser:*)
 
 # Browser Automation with agent-browser
 
+## Headless Mode (Important)
+
+This environment has no X Server / display. Always run agent-browser in **headless** mode (the default).
+Do NOT pass `--headed` or set `AGENT_BROWSER_HEADED=1` — it will fail with "Missing X server or $DISPLAY".
+If old headed daemon processes are lingering, kill them first (`ps aux | grep agent-browser | grep daemon` then `kill <pid>`), then re-run without `--headed`.
+
 ## Core Workflow
 
 Every browser automation follows this pattern:
