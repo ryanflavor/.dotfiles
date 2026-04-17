@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mod6: Ctrl+N 只在 custom model 间切换 (0 bytes)
+"""mod5: Ctrl+N 只在 custom model 间切换 (0 bytes)
 
 修改 peekNextCycleModel, peekNextCycleSpecModeModel, cycleSpecModeModel：
 - 函数入口覆盖参数 → this.customModels.map(m=>m.id)
@@ -14,7 +14,7 @@ data = load_droid()
 original_size = len(data)
 
 if b'=this.customModels.map(m=>m.id);' in data:
-    print("mod6 已应用，跳过")
+    print("mod5 已应用，跳过")
     sys.exit(0)
 
 INSERT = b'=this.customModels.map(m=>m.id);'
@@ -67,4 +67,4 @@ for fn_name in TARGETS:
 
 assert len(data) == original_size, f"大小变化 {len(data) - original_size:+d}"
 save_droid(data)
-print(f"mod6 完成 ({len(TARGETS)} 个函数)")
+print(f"mod5 完成 ({len(TARGETS)} 个函数)")

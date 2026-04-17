@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""检查 droid 当前状态：原版/已修改/部分修改，以及 settings.json 配置"""
+"""检查 droid 当前状态：原版/已修改/部分修改，以及 settings.json 配置
+
+Mod 编号 (2026-04 重排后):
+  mod1  截断条件                 (原 mod1)
+  mod2  命令显示阈值             (原 mod2)
+  mod3  输出行数 (含原 mod5)     (原 mod3)
+  mod4  diff 行数                (原 mod4)
+  mod5  custom model cycle       (原 mod6)
+  mod6  mission 模型白名单       (原 mod8)
+  mod7  custom model effort 级别 (原 mod9)
+  mod8  禁用内置模型             (原 mod10)
+  mod9  禁用自动更新             (原 mod13)
+  mod10 压缩默认模型             (原 mod17)
+
+已删除: 原 mod5(合并到 mod3) / mod7 / mod11 / mod12 / mod14 / mod15 / mod16
+"""
 import json
 import re
 from pathlib import Path
@@ -39,25 +54,20 @@ elif b'command.length>50' in data:
 else:
     results['mod2'] = 'unknown'
 
-# mod3+mod5: 输出行数
+# mod3: 输出行数 (合并原 mod5 输出提示)
 # v0.74+: VAR=(99) , 模式 (0 bytes, 替换 VAR=VAR2?8:4,)
 # v0.49+: VAR=99,VAR2=5,VAR3=200 模式 (+1 byte)
 if re.search(V + rb'=\(99\) ,', data):
     results['mod3'] = 'modified'
-    results['mod5'] = 'modified'
 elif re.search(V + rb'=99,' + V + rb'=5,' + V + rb'=200', data):
     results['mod3'] = 'modified'
-    results['mod5'] = 'modified'
 elif re.search(V + rb'=4,' + V + rb'=5,' + V + rb'=200', data):
     results['mod3'] = 'original'
-    results['mod5'] = 'original'
 elif re.search(V + rb'=\(?[48]\)? ?,' , data):
     # v0.74 原版: VAR=VAR2?8:4,
     results['mod3'] = 'original'
-    results['mod5'] = 'original'
 else:
     results['mod3'] = 'unknown'
-    results['mod5'] = 'unknown'
 
 # mod4: diff行数
 # v0.74+: var V=99,V=2000 (uhf=99,Jhf=2000)
@@ -73,8 +83,8 @@ elif re.search(rb'var ' + V + rb'=20,' + V + rb',', data):
 else:
     results['mod4'] = 'unknown'
 
-# mod6: custom model cycle
-def _mod6_detect():
+# mod5: custom model cycle (原 mod6)
+def _mod5_detect():
     targets = [b'peekNextCycleModel', b'peekNextCycleSpecModeModel', b'cycleSpecModeModel']
     modified = original = 0
     for fn in targets:
@@ -90,21 +100,10 @@ def _mod6_detect():
         return 'original'
     return 'unknown'
 
-results['mod6'] = _mod6_detect()
+results['mod5'] = _mod5_detect()
 
-# mod7: mission 门控
-# v0.74+: 已移除 statsig 门控，/enter-mission 直接可用，mod7 不再需要
-if b'statsigName:"enable_extra_mod0",defaultValue:!0' in data:
-    results['mod7'] = 'modified'
-elif b'statsigName:"enable_extra_mode",defaultValue:!1' in data:
-    results['mod7'] = 'original'
-elif b'statsigName:"enable_extra_mode"' not in data:
-    results['mod7'] = 'n/a'   # v0.74+: statsig 门控已移除
-else:
-    results['mod7'] = 'unknown'
-
-# mod8: mission 模型白名单
-def _mod8_detect():
+# mod6: mission 模型白名单 (原 mod8)
+def _mod6_detect():
     has_orig1 = bool(re.search(V + rb'\.includes\(' + V + rb'\)\)\{if\(!' + V, data))
     has_orig2 = bool(re.search(rb'if\(!\(' + V + rb'\.includes\(' + V + rb'\)&&' + V + rb'\.includes\(', data))
     has_mod1 = bool(re.search(rb'!0\s+\)\{if\(!' + V, data))
@@ -117,74 +116,44 @@ def _mod8_detect():
         return 'partial'
     return 'unknown'
 
-results['mod8'] = _mod8_detect()
+results['mod6'] = _mod6_detect()
 
-# mod9: custom model effort 级别
+# mod7: custom model effort 级别 (原 mod9)
 if b'.provider=="openai"' in data and b'["off","low","medium","high","max"]' in data:
-    results['mod9'] = 'modified'
+    results['mod7'] = 'modified'
 elif re.search(rb'supportedReasoningEfforts:' + V + rb'\?\["off","low","medium","high"\]:\["none"\]', data):
+    results['mod7'] = 'original'
+else:
+    results['mod7'] = 'unknown'
+
+# mod8: 禁用内置模型 (原 mod10 / validateModelAccess non-custom return)
+OLD_BUILTIN = b'isCustomModel:!1};return{allowed:!0,isCustomModel:!1}}'
+NEW_BUILTIN = b'isCustomModel:!1};return{allowed:!1,isCustomModel:!1}}'
+if NEW_BUILTIN in data and OLD_BUILTIN not in data:
+    results['mod8'] = 'modified'
+elif OLD_BUILTIN in data:
+    results['mod8'] = 'original'
+else:
+    results['mod8'] = 'unknown'
+
+# mod9: 禁用自动更新 (原 mod13)
+if b'checkForUpdates(){return null;/*' in data:
+    results['mod9'] = 'modified'
+elif b'async checkForUpdates(){' in data:
     results['mod9'] = 'original'
 else:
     results['mod9'] = 'unknown'
 
-# mod10: 禁用内置模型 (validateModelAccess non-custom return)
-OLD_BUILTIN = b'isCustomModel:!1};return{allowed:!0,isCustomModel:!1}}'
-NEW_BUILTIN = b'isCustomModel:!1};return{allowed:!1,isCustomModel:!1}}'
-if NEW_BUILTIN in data and OLD_BUILTIN not in data:
+# mod10: 压缩默认模型 factory-default → current-model (原 mod17)
+if b'compactionModelMode??"current-model"  ' in data:
     results['mod10'] = 'modified'
-elif OLD_BUILTIN in data:
+elif b'compactionModelMode??"factory-default"' in data:
     results['mod10'] = 'original'
 else:
     results['mod10'] = 'unknown'
 
-# mod11: subagent spawn 修复 (process.argv[0] → process.execPath)
-if b'process.execPath,baseArgs:[]' in data:
-    results['mod11'] = 'modified'
-elif b'function ujD(){let' in data and b'process.argv[0]' in data:
-    results['mod11'] = 'original'
-elif b'process.execPath).includes("droid")' in data:
-    results['mod11'] = 'n/a'  # 0.76.0 及更早版本不需要
-else:
-    results['mod11'] = 'unknown'
-
-# mod12: mission worker effort 从 settings 读取 (不再硬编码 "high")
-# 修改后特征: ...WorkerModel(),E=L?A.getMissionValidationWorkerReasoningEffort():A.getMissionWorkerReasoningEffort()
-MOD12_SIG = b'getMissionValidationWorkerReasoningEffort():' + V.replace(rb'[', b'').replace(rb']', b'').encode() if isinstance(V, str) else b''
-# 直接用完整特征匹配
-if b'WorkerModel(),E=L?A.getMissionValidationWorkerReasoningEffort():A.getMissionWorkerReasoningEffort()' in data:
-    results['mod12'] = 'modified'
-elif re.search(rb'WorkerModel\(\),' + V + rb'=\(BD\(' + V + rb'\)\.supportedReasoningEfforts', data):
-    results['mod12'] = 'original'
-else:
-    results['mod12'] = 'unknown'
-
-# mod14: summarizer OpenAI → ChatCompletions fallback
-# mod15 会将死代码区 return(...) 替换为 return null;，需同时兼容
-if (b'provider==="openai"&&!1)return(' in data or b'provider==="openai"&&!1)return null;' in data) and b'N.provider==="generic-chat-completion-api"||' in data:
-    results['mod14'] = 'modified'
-elif b'provider==="openai")return(' in data and b'responses.create' in data:
-    results['mod14'] = 'original'
-else:
-    results['mod14'] = 'unknown'
-
-# mod15: YcM partial JSON parser Unicode escape fix
-if b'default:M=="u"?(A+=String.fromCharCode' in data and b'default:I=="u"?(A+=String.fromCharCode' in data:
-    results['mod15'] = 'modified'
-elif b'default:A+=M;break}}else A+=H[' in data and b'default:A+=I;break}}else A+=H[' in data:
-    results['mod15'] = 'original'
-else:
-    results['mod15'] = 'unknown'
-
-# mod16: wU$ 预处理修复 proxy 发送无反斜杠 uXXXX 的 bug
-if b'H=H.replace(/(?<!\\\\)u([0-9a-fA-F]{4})/g,' in data:
-    results['mod16'] = 'modified'
-elif b'function wU$(H){if(!H.trim())return{data:{},isComplete:!1};try{' in data:
-    results['mod16'] = 'original'
-else:
-    results['mod16'] = 'unknown'
-
 # 输出
-total = 15
+total = len(results)
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 na_count   = sum(1 for v in results.values() if v == 'n/a')
@@ -194,8 +163,7 @@ print(f"droid 状态:\n")
 for name, status in results.items():
     icon  = '✓' if status == 'modified' else '○' if status == 'original' else '△' if status == 'partial' else '-' if status == 'n/a' else '?'
     label = {'modified': '已修改', 'original': '原版', 'partial': '部分', 'unknown': '未知', 'n/a': '不适用'}[status]
-    note  = ' (由 mod3 控制)' if name == 'mod5' else ' (v0.74+: 门控已移除，/enter-mission 直接可用)' if status == 'n/a' and name == 'mod7' else ' (0.76.0 及更早: 不需要)' if status == 'n/a' and name == 'mod11' else ''
-    print(f"  {icon} {name}: {label}{note}")
+    print(f"  {icon} {name}: {label}")
 
 print()
 if mod_count == applicable:
@@ -231,7 +199,7 @@ else:
                 extra = m.get('extraArgs', {})
 
                 issues = []
-                has_mod9 = results.get('mod9') == 'modified'
+                has_mod7 = results.get('mod7') == 'modified'
 
                 # reasoningEffort 优先级:
                 #   有值 (low/medium/high/max/xhigh) → Droid 控制，extraArgs 中的 effort 被忽略
@@ -267,7 +235,7 @@ else:
                             f'extraArgs 中的整个 reasoning 对象必须移除（包括 summary）'
                             '（responses.create 中 extraArgs 浅展开会覆盖 requestParams.reasoning，'
                             '导致 effort 字段丢失，Tab 切换 Thinking Level 完全无效'
-                            + (f'；mod9 已解锁 xhigh' if has_mod9 else '') + '）'
+                            + (f'；mod7 已解锁 xhigh' if has_mod7 else '') + '）'
                             + keep_note)
 
                 icon = '✓' if not issues else '⚠'
@@ -291,8 +259,8 @@ else:
                 ve = mission.get('validationWorkerReasoningEffort', '')
                 print(f"    Worker:    {wm} ({we})" + (" ⚠ 不在 customModels 中" if wm and wm not in model_ids else ""))
                 print(f"    Validator: {vm} ({ve})" + (" ⚠ 不在 customModels 中" if vm and vm not in model_ids else ""))
-            elif results.get('mod7') == 'modified' or results.get('mod8') == 'modified':
-                print(f"\n  ⚠ mod7/mod8 已启用但缺少 missionModelSettings")
+            elif results.get('mod6') == 'modified':
+                print(f"\n  ⚠ mod6 已启用但缺少 missionModelSettings")
                 print(f"    → 建议配置 workerModel / validationWorkerModel 指向 custom model")
 
             if not warnings:

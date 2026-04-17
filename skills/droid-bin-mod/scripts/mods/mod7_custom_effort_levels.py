@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mod9: custom model 支持完整 effort 级别 (+66 bytes per match)
+"""mod7: custom model 支持完整 effort 级别 (+66 bytes per match)
 
 问题: custom model 硬编码 supportedReasoningEfforts 为 ["off","low","medium","high"]，
 缺少 anthropic 的 "max" 和 openai 的 "xhigh"。
@@ -17,7 +17,7 @@ from common import load_droid, save_droid, V
 data = load_droid()
 
 if b'.provider=="openai"?["none"' in data:
-    print("mod9 已应用，跳过")
+    print("mod7 已应用，跳过")
     sys.exit(0)
 
 # 匹配: VAR?["off","low","medium","high"]:["none"]
@@ -51,5 +51,5 @@ for m in reversed(matches):
     total_diff += diff
     print(f"  match: {cond_var.decode()}?[...] → {model_var.decode()}.provider check ({diff:+d} bytes)")
 
-print(f"mod9: {len(matches)} 处 effort 列表已修改 (总计 {total_diff:+d} bytes)")
+print(f"mod7: {len(matches)} 处 effort 列表已修改 (总计 {total_diff:+d} bytes)")
 save_droid(data)
