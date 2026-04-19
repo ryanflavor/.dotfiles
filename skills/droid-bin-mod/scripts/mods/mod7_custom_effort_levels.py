@@ -6,7 +6,7 @@
 
 修改: 根据 provider 返回正确的 effort 列表:
   - openai:    ["none","low","medium","high","xhigh"]
-  - anthropic: ["off","low","medium","high","max"]  (也作为其他 provider 的默认)
+  - anthropic: ["off","low","medium","high","xhigh","max"]  (claude-opus-4-7 等支持 xhigh)
 
 使用正则匹配变量名，适应混淆。
 """
@@ -42,7 +42,7 @@ for m in reversed(matches):
     new = (
         m.group(1) + cond_var + b'?' + model_var + b'.provider=="openai"'
         b'?["none","low","medium","high","xhigh"]'
-        b':["off","low","medium","high","max"]'
+        b':["off","low","medium","high","xhigh","max"]'
         b':["none"]'
         + m.group(4) + m.group(5) + m.group(6)
     )

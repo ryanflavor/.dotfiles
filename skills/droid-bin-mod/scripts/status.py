@@ -11,9 +11,9 @@ Mod 编号 (2026-04 重排后):
   mod7  custom model effort 级别 (原 mod9)
   mod8  禁用内置模型             (原 mod10)
   mod9  禁用自动更新             (原 mod13)
-  mod10 压缩默认模型             (原 mod17)
 
-已删除: 原 mod5(合并到 mod3) / mod7 / mod11 / mod12 / mod14 / mod15 / mod16
+已删除: 原 mod5(合并到 mod3) / mod7 / mod11 / mod12 / mod14 / mod15 / mod16 / mod17
+       (mod10 压缩默认模型在 v0.104+ 上游已默认 "current-model"，不再需要 patch)
 """
 import json
 import re
@@ -61,7 +61,12 @@ if re.search(V + rb'=\(99\) ,', data):
     results['mod3'] = 'modified'
 elif re.search(V + rb'=99,' + V + rb'=5,' + V + rb'=200', data):
     results['mod3'] = 'modified'
+elif re.search(rb'=200,' + V + rb'=99,', data) and b'.slice(0,99),u=' in data:
+    # v0.104+: =200,X2H=99, 变量 + 输出预览 literal 99
+    results['mod3'] = 'modified'
 elif re.search(V + rb'=4,' + V + rb'=5,' + V + rb'=200', data):
+    results['mod3'] = 'original'
+elif re.search(rb'=200,' + V + rb'=8,', data):
     results['mod3'] = 'original'
 elif re.search(V + rb'=\(?[48]\)? ?,' , data):
     # v0.74 原版: VAR=VAR2?8:4,
@@ -119,7 +124,7 @@ def _mod6_detect():
 results['mod6'] = _mod6_detect()
 
 # mod7: custom model effort 级别 (原 mod9)
-if b'.provider=="openai"' in data and b'["off","low","medium","high","max"]' in data:
+if b'.provider=="openai"' in data and b'["off","low","medium","high","xhigh","max"]' in data:
     results['mod7'] = 'modified'
 elif re.search(rb'supportedReasoningEfforts:' + V + rb'\?\["off","low","medium","high"\]:\["none"\]', data):
     results['mod7'] = 'original'
@@ -143,14 +148,6 @@ elif b'async checkForUpdates(){' in data:
     results['mod9'] = 'original'
 else:
     results['mod9'] = 'unknown'
-
-# mod10: 压缩默认模型 factory-default → current-model (原 mod17)
-if b'compactionModelMode??"current-model"  ' in data:
-    results['mod10'] = 'modified'
-elif b'compactionModelMode??"factory-default"' in data:
-    results['mod10'] = 'original'
-else:
-    results['mod10'] = 'unknown'
 
 # 输出
 total = len(results)
